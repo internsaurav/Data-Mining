@@ -23,17 +23,22 @@ object saurav_sahu_task1 {
     val UID_gender_KV = dist_users_data.map(extract_UID_gender.generate_KV_pairs)
     val UID_movie_rating_KV = dist_ratings_data.map(extract_UID_movie_rating.generate_KV_pairs)
     val combined_KV_pair = UID_gender_KV.join(UID_movie_rating_KV)
-    val movie_gender_rating_KV = combined_KV_pair.map(kv => kv._2).map(kv => (kv._2._1,kv._1,kv._2._2))
+    val movie_gender_rating_KV = combined_KV_pair.map(kv => kv._2)
+      .map(kv => ((kv._2._1,kv._1),kv._2._2))
+      .groupByKey()
+      .mapValues(z => z.foldLeft(0,0){
+        (acc,elmt) => (acc._1+elmt, acc._2+1)
+      })
+      .mapValues(z => z._1.toDouble / z._2.toDouble)
+      .sortByKey()
+      .map(kv => (kv._1._1,kv._1._2,kv._2))
+//      .reduce(movie_avg_calc.reducer)
     movie_gender_rating_KV.collect().foreach(println)
 
     //clean up the memory
     dist_ratings_data.unpersist()
     dist_users_data.unpersist()
     sc.stop()
-//    val test = "1::1193::5::978300760"
-//    val res = extract_UID_movie_rating.generate_KV_pairs(test)
-//    println(res)
-
   }
 }
 
@@ -45,8 +50,8 @@ object extract_UID_gender {
 }
 
 object extract_UID_movie_rating {
-  def generate_KV_pairs(line:String): (String,(String,String)) = {
+  def generate_KV_pairs(line:String): (String,(Int,Int)) = {
     val split_line =  line.split("::")
-    (split_line(0),(split_line(1),split_line(2)))
+    (split_line(0),(split_line(1).toInt,split_line(2).toInt))
   }
 }
