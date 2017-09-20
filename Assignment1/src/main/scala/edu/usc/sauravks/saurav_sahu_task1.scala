@@ -8,15 +8,14 @@ import org.apache.spark.storage.StorageLevel
 
 object saurav_sahu_task1 {
   def main(args: Array[String]): Unit = {
-
     val appName = "Movie_Rating_Cal"
     val master = "local[*]" // uses as many cores as present in local machine
     val conf = new SparkConf().setMaster(master).setAppName(appName)
     val sc = new SparkContext(conf) //spark context is the interface with cluster
 
     //Read the files into an RDD
-    val users_file_path = "/home/saurav/Documents/Data Mining/Assignments/CSCI-541/Assignment1/ml-1m/users.dat"
-    val ratings_file_path = "/home/saurav/Documents/Data Mining/Assignments/CSCI-541/Assignment1/ml-1m/ratings.dat"
+    val users_file_path = args(0)
+    val ratings_file_path = args(1)
     val storageLevel = StorageLevel.MEMORY_ONLY
     val dist_users_data = sc.textFile(users_file_path).persist(storageLevel)
     val dist_ratings_data = sc.textFile(ratings_file_path).persist(storageLevel)
@@ -43,7 +42,7 @@ object saurav_sahu_task1 {
     } )
     //clean up the memory
     output = output.stripLineEnd
-    fileWriter.writeToFile(output,"output_task1.txt")
+    fileWriter.writeToFile(output,"saurav_sahu_result_task1.txt")
     dist_ratings_data.unpersist()
     dist_users_data.unpersist()
     sc.stop()

@@ -15,9 +15,9 @@ object saurav_sahu_task2 {
     val sc = new SparkContext(conf) //spark context is the interface with cluster
 
     //Read the files into an RDD
-    val users_file_path = "/home/saurav/Documents/Data Mining/Assignments/CSCI-541/Assignment1/ml-1m/users.dat"
-    val ratings_file_path = "/home/saurav/Documents/Data Mining/Assignments/CSCI-541/Assignment1/ml-1m/ratings.dat"
-    val movies_file_path = "/home/saurav/Documents/Data Mining/Assignments/CSCI-541/Assignment1/ml-1m/movies.dat"
+    val users_file_path = args(0)
+    val ratings_file_path =args(1)
+    val movies_file_path = args(2)
     val storageLevel = StorageLevel.MEMORY_ONLY
     val dist_users_data = sc.textFile(users_file_path).persist(storageLevel)
     val dist_ratings_data = sc.textFile(ratings_file_path).persist(storageLevel)
@@ -29,14 +29,6 @@ object saurav_sahu_task2 {
     val combined_KV_pair = UID_gender_KV.join(UID_movie_rating_KV)
     val movie_gender_rating_KV = combined_KV_pair.map(kv => kv._2)
       .map(kv => (kv._2._1,(kv._1,kv._2._2)))
-//      .groupByKey()
-//      .mapValues(z => z.foldLeft(0,0){
-//        (acc,elmt) => (acc._1+elmt, acc._2+1)
-//      })
-//      .mapValues(z => z._1.toDouble / z._2.toDouble)
-//      .sortByKey()
-//      .map(kv => (kv._1._1,kv._1._2,kv._2))
-//      .collect()
 
     //generate movie genre data
     val movie_genre_KV = dist_movies_data.map(extract_movie_genre.generate_KV_pairs)
@@ -58,7 +50,7 @@ object saurav_sahu_task2 {
     } )
     //clean up the memory
     output = output.stripLineEnd
-    fileWriter.writeToFile(output, "output_task2.txt")
+    fileWriter.writeToFile(output, "saurav_sahu_result_task2.txt")
     dist_ratings_data.unpersist()
     dist_users_data.unpersist()
     dist_movies_data.unpersist()

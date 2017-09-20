@@ -1,0 +1,9 @@
+Instructions:
+1) Extract zip file "saurav_sahu_HW1.zip".
+2) In the terminal CD in the directory extracted in the previous step.
+3) The directory contains the input files that jar file needs in order to run.
+4) Run command task 1: spark-submit --class edu.usc.sauravks.saurav_sahu_task1 assignment1.jar users.dat ratings.dat
+5) Run command task 2: spark-submit --class edu.usc.sauravks.saurav_sahu_task2 assignment1.jar users.dat ratings.dat movies.dat
+6) The above 2 commands will output the results into 2 text files- "saurav_sahu_result_task1.txt" and "saurav_sahu_result_task2.txt"
+
+
