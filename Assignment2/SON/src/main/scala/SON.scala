@@ -5,6 +5,7 @@ import java.io.File
 import org.apache.spark.SparkContext
 import org.apache.spark.SparkConf
 import org.apache.spark.broadcast.Broadcast
+import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
 import scodec.bits.BitVector
 
@@ -25,23 +26,38 @@ object SON {
     val numUsers = 6040
     val male = sc.broadcast("M")
     val female = sc.broadcast("F")
-    val userGenderBitVector = findUsers(sc,usersFile,male,numUsers)
+    val userGenderBitVector = sc.broadcast(findUsers(sc,usersFile,male,numUsers))
     //now I want to generate the userId, movies baskets
+    val userMovieBaskets = makeMovieBaskets(sc,ratingsFile,userGenderBitVector)
+    println(userMovieBaskets.deep.mkString("\n"))
+
+
     male.destroy()
-
-//    userGenderBitVector.destroy()
-
-
+    userGenderBitVector.destroy()
     sc.stop()
 
 //    APriori.runApriori()
+  }
+  def makeMovieBaskets(sc: SparkContext, filename:String, userGenderBitVector:Broadcast[BitVector]): Array[(Int,Iterable[Int])] = {
+    val path = new File(filename).getCanonicalPath
+    val storageLevel = StorageLevel.MEMORY_ONLY
+    val dist_ratings_data = sc.textFile(path).persist(storageLevel) //creates RDDs of Strings
+    val movieBasketsKV = dist_ratings_data.map(line => generate_user_movie_KV_pairs(line,userGenderBitVector)).groupByKey().collect()
+    dist_ratings_data.unpersist()
+    movieBasketsKV
+  }
+
+  def generate_user_movie_KV_pairs(line:String, userGenderBitVector: Broadcast[BitVector]): (Int,Int) = {
+    val split_line =  line.split("::")
+    val uid = split_line(0).toInt
+    if(userGenderBitVector.value.get(uid)) (uid,split_line(1).toInt) else (0,0)
   }
 
   def findUsers(sc: SparkContext, filename: String, gender: Broadcast[String], numUsers:Int):BitVector = {
     val path = new File(filename).getCanonicalPath
     val storageLevel = StorageLevel.MEMORY_ONLY
     val dist_users_data = sc.textFile(path).persist(storageLevel) //creates RDDs of Strings
-    val UID_gender_KV = dist_users_data.map(line => generate_KV_pairs(line,gender)).collect()
+    val UID_gender_KV = dist_users_data.map(line => generate_gender_KV_pairs(line,gender)).collect()
     dist_users_data.unpersist()
     var arr = new Array[Int](numUsers+1)
     var userGenderBitVector = BitVector.low(numUsers+1)
@@ -51,7 +67,7 @@ object SON {
     userGenderBitVector
   }
 
-  def generate_KV_pairs(line:String, gender: Broadcast[String]): Int = {
+  def generate_gender_KV_pairs(line:String, gender: Broadcast[String]): Int = {
     val split_line =  line.split("::")
     if(split_line(1) == gender.value) split_line(0).toInt else 0
   }
