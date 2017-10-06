@@ -1,4 +1,4 @@
-package freuentItemsets
+package frequentItemsets
 
 object APriori {
   def runApriori(): Unit = {
