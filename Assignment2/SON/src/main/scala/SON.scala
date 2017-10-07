@@ -22,30 +22,38 @@ object SON {
     val caseNumber = 1
     val usersFile = "/home/saurav/Documents/Data Mining/Assignments/CSCI-541/Data/ml-1m/users.dat"
     val ratingsFile = "/home/saurav/Documents/Data Mining/Assignments/CSCI-541/Data/ml-1m/ratings.dat"
-    val support = 1300
+    val support = 1200
     val numUsers = 6040
     val male = sc.broadcast("M")
     val female = sc.broadcast("F")
     val userGenderBitVector = sc.broadcast(findUsers(sc,usersFile,male,numUsers))
+
     //now I want to generate the userId, movies baskets
     val userMovieBaskets = makeMovieBaskets(sc,ratingsFile,userGenderBitVector)
-    println(userMovieBaskets.deep.mkString("\n"))
-
-
     male.destroy()
     userGenderBitVector.destroy()
+    APriori.runApriori(userMovieBaskets,support)
     sc.stop()
 
-//    APriori.runApriori()
   }
-  def makeMovieBaskets(sc: SparkContext, filename:String, userGenderBitVector:Broadcast[BitVector]): Array[(Int,Iterable[Int])] = {
+  def makeMovieBaskets(sc: SparkContext, filename:String, userGenderBitVector:Broadcast[BitVector]): Array[Iterable[Int]] = {
     val path = new File(filename).getCanonicalPath
     val storageLevel = StorageLevel.MEMORY_ONLY
     val dist_ratings_data = sc.textFile(path).persist(storageLevel) //creates RDDs of Strings
-    val movieBasketsKV = dist_ratings_data.map(line => generate_user_movie_KV_pairs(line,userGenderBitVector)).groupByKey().collect()
+//    val movieBasketsKV = dist_ratings_data.map(line => generate_user_movie_KV_pairs(line,userGenderBitVector)).groupByKey().collect()
+    val movieBasketsKV = dist_ratings_data.map(line => generate_user_movie_KV_pairs(line,userGenderBitVector)).groupByKey().map(user_movies => user_movies._2).collect()
     dist_ratings_data.unpersist()
     movieBasketsKV
   }
+
+//  def makeMovieBaskets(sc: SparkContext, filename:String, userGenderBitVector:Broadcast[BitVector]): Array[(Int,Iterable[Int])] = {
+//    val path = new File(filename).getCanonicalPath
+//    val storageLevel = StorageLevel.MEMORY_ONLY
+//    val dist_ratings_data = sc.textFile(path).persist(storageLevel) //creates RDDs of Strings
+//    val movieBasketsKV = dist_ratings_data.map(line => generate_user_movie_KV_pairs(line,userGenderBitVector)).groupByKey().collect()
+//    dist_ratings_data.unpersist()
+//    movieBasketsKV
+//  }
 
   def generate_user_movie_KV_pairs(line:String, userGenderBitVector: Broadcast[BitVector]): (Int,Int) = {
     val split_line =  line.split("::")

@@ -1,0 +1,50 @@
+1) How to emit out the user, gender pairs such that later on I dont have to do O(n) searches in the list of Guys?
+solution-
+After collecting, I can do one pass and store them in an array indexwise for ffaster access. But is it scalable?
+lets say 100M users.(Netfli)
+worst case the array is 4Bytes * 100M = 400MB which is not big compared to computational complexity.
+If I do a Byte array then it reduces to 100MB lets do this.
+A bit array reduces that to 17 mb!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1
+
+2) so i did this
+if (split_line(1) == gender) {
+        split_line(0).toInt
+      }
+
+this returns something like this () 2 3 4 5 () 7 8 9 () ()
+in this case I have to do an additional computation to check if the calue is non null which hadds to computation time.
+so I will emit out a dummy number instead!!!!
+EVILLLLLL !!!
+and that number would obviously be the 0!!!!
+
+3) Now how to represent the movie baskets representing users
+for similar items i might need an array but not for this
+I just used an Iterable object
+
+4) How to make the movie count list
+netflix has 10000 movie/TV show. Amazon has like 4 times this number. so 40000
+integer = 4B
+Total size = 40000*4B = 160000 = 160KB. So not much.
+
+5)Checkout if list is better of buffer
+
+6) why are so many 0s there, those many ratings are by women.
+So if there are 2000 women, then they rated 250000/2000 = 125 movies on an average out of 4000 movies which seems reasonable
+
+7)Building the frequent items table
+Given: List of frequent singletons
+compute the last movie item
+
+original movie array containing the movieIds -  n length
+------------------------------
+|1|2|3|5|7|...................|
+-------------------------------
+
+now we have freuent items - m length but the array is again n length
+------------------------------
+|1|0|0|2|3|0|0|4............|m|
+-------------------------------
+
+This seems wasteful atfirst because I have to save all these numbers.
+I could have just used a hashmap
+but I need the matrices later on to save
