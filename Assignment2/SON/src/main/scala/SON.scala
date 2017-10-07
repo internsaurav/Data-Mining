@@ -22,7 +22,7 @@ object SON {
     val caseNumber = 1
     val usersFile = "/home/saurav/Documents/Data Mining/Assignments/CSCI-541/Data/ml-1m/users.dat"
     val ratingsFile = "/home/saurav/Documents/Data Mining/Assignments/CSCI-541/Data/ml-1m/ratings.dat"
-    val support = 1200
+    val support = 1300
     val numUsers = 6040
     val male = sc.broadcast("M")
     val female = sc.broadcast("F")

@@ -6,8 +6,10 @@ import scala.collection.mutable.{HashMap, HashSet, Map}
 object APriori {
   def runApriori( baskets:Array[Iterable[Int]], support:Int): Unit = {
     var (itemsIndex,itemCountsArray) = runPhase1(baskets)
-    val (newitemIndex,numFreqSingletons) = runPhaseBeforePhase2(itemCountsArray,support)
-    runPhase2(baskets,itemsIndex,newitemIndex,numFreqSingletons)
+    val (newItemIndex,numFreqSingletons) = runPhaseBeforePhase2(itemCountsArray,support)
+    runPhase2(baskets,itemsIndex,newItemIndex,numFreqSingletons,support)
+
+
   }
 
   /*
@@ -41,7 +43,7 @@ object APriori {
     itemIds into integers from 1 to n, as described in Section 6.2.2.
     form is [itemId -> someIndex]
   * */
-  def indexItems(itemCounts: Map[Int, Int]): mutable.HashMap[Int,Int]  = {
+  private def indexItems(itemCounts: Map[Int, Int]): mutable.HashMap[Int,Int]  = {
     var index=1
     var itemsIndex = new mutable.HashMap[Int,Int]()
     for ( (item,count) <- itemCounts){
@@ -56,7 +58,7 @@ object APriori {
   /*The methods returns an array of counts;
     the ith array element counts the occurrences of the item numbered i.
   * */
-  def prepareCountsArray(itemCounts: mutable.Map[Int, Int], itemIndex:mutable.HashMap[Int,Int]):Array[Int]={
+  private def prepareCountsArray(itemCounts: mutable.Map[Int, Int], itemIndex:mutable.HashMap[Int,Int]):Array[Int]={
     val countsArray = new Array[Int](itemIndex.size)
     for ((item,index) <- itemIndex){
       countsArray(index)=itemCounts(item)
@@ -108,18 +110,20 @@ object APriori {
       determine which pairs are frequent.
       *freqItemsInBasket - contains the indices of the items not the ids
     * */
-  def runPhase2(baskets:Array[Iterable[Int]], itemIndex:mutable.HashMap[Int,Int], newItemIndex: Array[Int], numFreqSingletons:Int)={
+  def runPhase2(baskets:Array[Iterable[Int]], itemIndex:mutable.HashMap[Int,Int], newItemIndex: Array[Int], numFreqSingletons:Int,support:Int) = {
     var itemPairCountArray = new Array[Int](numFreqSingletons*numFreqSingletons/2)
+    var indexItems = itemIndex.map(_.swap) //k,v reversed
     for (basket <- baskets){
       var freqItemsInBasket = new mutable.HashSet[Int]()
       for (item <- basket){
         val itemindex:Int = itemIndex(item)
-        if (newItemIndex(itemindex) !=0) freqItemsInBasket += newItemIndex(itemindex)//i just need to save their temporary indices
+        if (newItemIndex(itemindex) !=0 ) freqItemsInBasket += newItemIndex(itemindex)// just need to save their temporary indices
       }
-      if (freqItemsInBasket.size > 1) itemPairCountArray = incrementValuesInTriangularMatrix(freqItemsInBasket,itemPairCountArray,itemIndex,newItemIndex,numFreqSingletons)
+      if (freqItemsInBasket.size > 1) itemPairCountArray = incrementValuesInTriangularMatrix(freqItemsInBasket,itemPairCountArray,itemIndex,indexItems,newItemIndex,numFreqSingletons)
     }
 
-
+    var frequentPairs = findFrequentPairsFromMatrix(itemPairCountArray,support,newItemIndex,indexItems,numFreqSingletons)
+    println(frequentPairs.mkString("\n"))
   }
 
   /*
@@ -136,10 +140,11 @@ object APriori {
     to {n − 2, n − 1}, {n − 2, n}, and finally {n − 1, n}.
     *but all of them wont be filled.
   * */
-  def incrementValuesInTriangularMatrix(freqItemsInBasket: mutable.HashSet[Int], itemPairCountArray: Array[Int], itemIndex: mutable.HashMap[Int, Int], newItemIndex: Array[Int],numFreqSingletons:Int): Array[Int] = {
+  private def incrementValuesInTriangularMatrix(freqItemsInBasket: mutable.HashSet[Int], itemPairCountArray: Array[Int], itemIndex: mutable.HashMap[Int, Int],indexItems:mutable.HashMap[Int, Int] , newItemIndex: Array[Int],numFreqSingletons:Int): Array[Int] = {
     var triangularMatrix = itemPairCountArray
     val n = numFreqSingletons
     val itr = freqItemsInBasket.subsets(2)
+//    println("basket Recieved===>" + movieSetFromNewIndices(freqItemsInBasket,newItemIndex,indexItems).mkString(",") )
     while (itr.hasNext){
       val pair = itr.next().toArray
       var i,j = 0
@@ -151,10 +156,97 @@ object APriori {
         i=pair(1)
         j=pair(0)
       }
-      val k = (i-1)*(n-i/2)+(j-i)
+//      println("pair considered is (" + movieIdFromNewIndices(i,newItemIndex,indexItems) + ","+ movieIdFromNewIndices(j,newItemIndex,indexItems)+")" )
+val k = ((i-1)*(n-i.toFloat/2)+(j-i)).toInt
       triangularMatrix(k) += 1
     }
     triangularMatrix
+  }
+
+  /*
+  * finds frequent items pairs
+  */
+  private def findFrequentPairsFromMatrix(itemPairCountArray: Array[Int],support:Int, newItemIndex: Array[Int], indexItems: mutable.HashMap[Int, Int],n:Int): mutable.SortedSet[(Int,Int)] ={
+    var frequentPairs = mutable.SortedSet[(Int,Int)]()
+    for (a <- 0 until newItemIndex.length-1){
+      if (newItemIndex(a) !=0){
+        for (b <- a+1 until newItemIndex.length){
+          if (newItemIndex(b) !=0){
+            val i = newItemIndex(a)
+            val j = newItemIndex(b)
+            val k = ((i-1)*(n-i.toFloat/2)+(j-i)).toInt
+            if (itemPairCountArray(k) >= support){
+              val item1 = indexItems(a)
+              val item2 = indexItems(b)
+              if (item1 < item2) frequentPairs += ((item1,item2)) else frequentPairs += ((item2,item1))
+            }
+          }
+        }
+      }
+    }
+  frequentPairs
+  }
+
+  private def findFrequentPairsNSupportFromMatrix(itemPairCountArray: Array[Int],support:Int, newItemIndex: Array[Int], indexItems: mutable.HashMap[Int, Int],n:Int): mutable.SortedSet[(Int,Int,Int)] ={
+    var frequentPairs = mutable.SortedSet[(Int,Int,Int)]()
+    for (a <- 0 until newItemIndex.length-1){
+      if (newItemIndex(a) !=0){
+        for (b <- a+1 until newItemIndex.length){
+          if (newItemIndex(b) !=0){
+            val i = newItemIndex(a)
+            val j = newItemIndex(b)
+            val k = ((i-1)*(n-i.toFloat/2)+(j-i)).toInt
+            if (itemPairCountArray(k) >= support){
+              val item1 = indexItems(a)
+              val item2 = indexItems(b)
+              if (item1 < item2) frequentPairs += ((item1,item2,itemPairCountArray(k))) else frequentPairs += ((item2,item1,itemPairCountArray(k)))
+            }
+          }
+        }
+      }
+    }
+    frequentPairs
+  }
+
+  /*
+  * helper function to find the actual movie Ids from new ItemIndex
+  * */
+  private def movieSetFromNewIndices(freqItemsInBasket: mutable.HashSet[Int], newItemIndex: Array[Int], indexItems: mutable.HashMap[Int, Int]): mutable.SortedSet[Int]={
+    var movieSet = mutable.SortedSet[Int]()
+    for (i <- 0 until newItemIndex.length){
+      if (newItemIndex(i)!=0 && freqItemsInBasket.contains(newItemIndex(i))) movieSet += indexItems(i)
+    }
+    movieSet
+  }
+
+  private def movieIdFromNewIndices(newIndex:Int, newItemIndex: Array[Int], indexItems: mutable.HashMap[Int, Int]): Int={
+    var i=0
+    for (j <- 0 until newItemIndex.length){
+      if (newItemIndex(j) == newIndex) return indexItems(j)
+    }
+    indexItems(i)
+  }
+
+  private def checkIfUnique(newItemIndex: Array[Int], n:Int)={
+    println("Num freq s " + n)
+    var temp = new mutable.HashMap[Int,mutable.Set[(Int,Int)]]()
+    var temp2 = new mutable.HashSet[Int]()
+    for (a <- 0 until newItemIndex.length-1){
+      if (newItemIndex(a) !=0){
+        for (b <- a+1 until newItemIndex.length){
+          if (newItemIndex(b) !=0){
+            val i = newItemIndex(a)
+            val j = newItemIndex(b)
+
+            var k = (((i-1)*(n-(i.toFloat/2)))+(j-i)).toInt
+            println("Considering " + i + "," + j + " K==> " + k)
+            if (temp2.contains(k)) println("Duplicate") else temp2 += k
+//            if (temp.contains(k)) temp(k) += ((i,j)) else temp += ((k,mutable.Set{(i,j)}))
+          }
+        }
+      }
+    }
+//    print(temp.mkString("\n"))
   }
 
 }
