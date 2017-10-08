@@ -25,31 +25,22 @@ object SON {
     val usersFile = "/home/saurav/Documents/Data Mining/Assignments/CSCI-541/Data/ml-1m/users.dat"
     val ratingsFile = "/home/saurav/Documents/Data Mining/Assignments/CSCI-541/Data/ml-1m/ratings.dat"
     val support = 1200
-
-    if (caseNumber == 1){
-      val male = sc.broadcast("M")
-      val userGenderBitVector = sc.broadcast(findUsers(sc,usersFile,male))
-      val userMovieBaskets = makeMovieBaskets(sc,ratingsFile,userGenderBitVector)
-      male.destroy()
-      userGenderBitVector.destroy()
-      APriori.runApriori(userMovieBaskets,support)
-    }
-
-    if (caseNumber == 2){
-      val female = sc.broadcast("F")
-      female.destroy()
-    }
-
+    var gender = sc.broadcast("")
+    if (caseNumber == 1) gender = sc.broadcast("M") else gender = sc.broadcast("F")
+    val userGenderBitVector = sc.broadcast(findUsers(sc,usersFile,gender))
+    val baskets = makeBaskets(sc, ratingsFile, userGenderBitVector,caseNumber)
+    gender.destroy()
+    userGenderBitVector.destroy()
+    APriori.runApriori(baskets,support)
     sc.stop()
   }
-  def makeMovieBaskets(sc: SparkContext, filename:String, userGenderBitVector:Broadcast[BitVector]): Array[Iterable[Int]] = {
+  def makeBaskets(sc: SparkContext, filename: String, userGenderBitVector: Broadcast[BitVector], caseNumber: Int): Array[Iterable[Int]] = {
     val path = new File(filename).getCanonicalPath
     val storageLevel = StorageLevel.MEMORY_ONLY
     val dist_ratings_data = sc.textFile(path).persist(storageLevel) //creates RDDs of Strings
-//    val movieBasketsKV = dist_ratings_data.map(line => generate_user_movie_KV_pairs(line,userGenderBitVector)).groupByKey().collect()
-    val movieBasketsKV = dist_ratings_data.map(line => generate_user_movie_KV_pairs(line,userGenderBitVector)).groupByKey().map(user_movies => user_movies._2).collect()
+    val baskets = dist_ratings_data.map(line => generate_user_movie_KV_pairs(line, userGenderBitVector, caseNumber)).groupByKey().map(user_movies => user_movies._2).collect()
     dist_ratings_data.unpersist()
-    movieBasketsKV
+    baskets
   }
 
 //  def makeMovieBaskets(sc: SparkContext, filename:String, userGenderBitVector:Broadcast[BitVector]): Array[(Int,Iterable[Int])] = {
@@ -61,10 +52,12 @@ object SON {
 //    movieBasketsKV
 //  }
 
-  def generate_user_movie_KV_pairs(line:String, userGenderBitVector: Broadcast[BitVector]): (Int,Int) = {
+  def generate_user_movie_KV_pairs(line: String, userGenderBitVector: Broadcast[BitVector], caseNumber: Int): (Int,Int) = {
     val split_line =  line.split("::")
     val uid = split_line(0).toInt
-    if(userGenderBitVector.value.get(uid)) (uid,split_line(1).toInt) else (0,0)
+    if(userGenderBitVector.value.get(uid)) {
+      if (caseNumber == 1) (uid,split_line(1).toInt) else (split_line(1).toInt,uid)
+    } else (0,0)
   }
 
   /*
