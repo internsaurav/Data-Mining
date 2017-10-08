@@ -9,6 +9,8 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
 import scodec.bits.BitVector
 
+import scala.collection.mutable
+
 object SON {
   def main(args: Array[String])={
 
