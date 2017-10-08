@@ -6,19 +6,18 @@ import scala.collection.mutable.{HashMap, Map}
 import scala.util.control.Breaks.{break, breakable}
 
 object APriori {
-
-  /*
-  * This function runs Apriori till no more frequent items are found
-  * It runs phase 1 and 2 pHase 2 manually. This is because Phase implements upper triangular matrix
-  * Further phases run in a loop and use triples method to store the data.
-  * */
+    /*
+    * This function runs Apriori till no more frequent items are found
+    * It runs phase 1 and 2 pHase 2 manually. This is because Phase implements upper triangular matrix
+    * Further phases run in a loop and use triples method to store the data.
+    * */
   def runApriori( baskets:Array[Iterable[Int]], support:Int): Unit = {
     var frequentItemsSets = new mutable.HashMap[Int,HashSet[Set[Int]]]()
     var (itemsIndex,itemCountsArray) = runPhase1(baskets)
     val (newItemIndex,numFreqSingletons) = runPhaseBeforePhase2(itemCountsArray,support)
     var frequentCombosFoundInCurrentPhase = (numFreqSingletons != 0) //this variable is the flag used to stop the loop when no more frequent items are found
     var frequentPairs = runPhase2(baskets,itemsIndex,newItemIndex,numFreqSingletons,support)
-//    frequentItemsSets = addResultsofPhase1(newItemIndex,frequentItemsSets)
+    frequentItemsSets = addResultsofPhase1(newItemIndex,frequentItemsSets,itemsIndex)
 //    println(frequentPairs.mkString("  "))
     frequentItemsSets += ((2,frequentPairs))
 //    println(frequentItemsSets(2).mkString("\n"))
@@ -30,8 +29,17 @@ object APriori {
       if (frequentCombosFoundInCurrentPhase) frequentItemsSets(phase)=thisPhaseFreqItemsets
       phase +=1
     }
-    val temp2 = frequentItemsSets(3)
-    println(temp2.to[List].mkString("\n"))
+  println(frequentItemsSets.mkString("\n"))
+  }
+
+  def addResultsofPhase1(newItemIndex: Array[Int], frequentItemsSets: mutable.HashMap[Int, HashSet[Set[Int]]],itemsIndex:mutable.HashMap[Int,Int]):mutable.HashMap[Int,HashSet[Set[Int]]] = {
+    val temp = mutable.HashSet[Set[Int]]()
+    val indexItem = itemsIndex.map(_.swap)
+    for(i <- 0 until newItemIndex.length){
+      if (newItemIndex(i) !=0) temp += Set(indexItem(i))
+    }
+    frequentItemsSets(1) = HashSet[Set[Int]]()++temp
+    frequentItemsSets
   }
 
   /*
