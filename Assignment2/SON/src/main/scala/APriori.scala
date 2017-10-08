@@ -1,7 +1,9 @@
 package frequentItemsets
 
-import scala.collection.mutable
+import scala.collection.immutable.{HashSet, SortedSet}
+import scala.collection.{immutable, mutable}
 import scala.collection.mutable.{HashMap, Map}
+import scala.util.control.Breaks.{break, breakable}
 
 object APriori {
 
@@ -11,12 +13,11 @@ object APriori {
   * Further phases run in a loop and use triples method to store the data.
   * */
   def runApriori( baskets:Array[Iterable[Int]], support:Int): Unit = {
-    var frequentItemsSets = new mutable.HashMap[Int,mutable.HashSet[mutable.Iterable[Int]]]()
+    var frequentItemsSets = new mutable.HashMap[Int,HashSet[Set[Int]]]()
     var (itemsIndex,itemCountsArray) = runPhase1(baskets)
     val (newItemIndex,numFreqSingletons) = runPhaseBeforePhase2(itemCountsArray,support)
     var frequentCombosFoundInCurrentPhase = (numFreqSingletons != 0) //this variable is the flag used to stop the loop when no more frequent items are found
     var frequentPairs = runPhase2(baskets,itemsIndex,newItemIndex,numFreqSingletons,support)
-
 //    frequentItemsSets = addResultsofPhase1(newItemIndex,frequentItemsSets)
 //    println(frequentPairs.mkString("  "))
     frequentItemsSets += ((2,frequentPairs))
@@ -24,12 +25,13 @@ object APriori {
     frequentCombosFoundInCurrentPhase = (frequentPairs.size != 0)
     var phase = 3 //initialises phase 3
     while (frequentCombosFoundInCurrentPhase){
-      var thisPhaseFreqItemsets:mutable.HashSet[mutable.Iterable[Int]] = runPhaseN(baskets,phase,frequentItemsSets,itemsIndex)
+      var thisPhaseFreqItemsets:HashSet[Set[Int]] = runPhaseN(baskets,phase,frequentItemsSets,support)
       frequentCombosFoundInCurrentPhase = (thisPhaseFreqItemsets.size != 0)
       if (frequentCombosFoundInCurrentPhase) frequentItemsSets(phase)=thisPhaseFreqItemsets
       phase +=1
     }
-//    println(frequentItemsSets.mkString("\n"))
+    val temp2 = frequentItemsSets(3)
+    println(temp2.to[List].mkString("\n"))
   }
 
   /*
@@ -56,7 +58,6 @@ object APriori {
     val itemCountsArray = prepareCountsArray(itemCounts,itemsIndex)
     (itemsIndex,itemCountsArray)
   }
-
 
   /*
   * This translates
@@ -106,7 +107,6 @@ object APriori {
     (newItemIndex,newIndex-1)
   }
 
-
   /*
     * During the second pass, we count all the pairs that consist of two frequent
       items. Recall from Section 6.2.3 that a pair cannot be frequent unless both its
@@ -130,7 +130,7 @@ object APriori {
       determine which pairs are frequent.
       *freqItemsInBasket - contains the indices of the items not the ids
     * */
-  def runPhase2(baskets:Array[Iterable[Int]], itemIndex:mutable.HashMap[Int,Int], newItemIndex: Array[Int], numFreqSingletons:Int,support:Int):mutable.HashSet[mutable.Iterable[Int]] = {
+  def runPhase2(baskets:Array[Iterable[Int]], itemIndex:mutable.HashMap[Int,Int], newItemIndex: Array[Int], numFreqSingletons:Int,support:Int):HashSet[immutable.Set[Int]] = {
     var itemPairCountArray = new Array[Int](numFreqSingletons*numFreqSingletons/2)
     var indexItems = itemIndex.map(_.swap) //k,v reversed
     for (basket <- baskets){
@@ -143,37 +143,82 @@ object APriori {
     }
 
     var frequentPairs = findFrequentPairsFromMatrix(itemPairCountArray,support,newItemIndex,indexItems,numFreqSingletons)
-    frequentPairs
+    new HashSet[Set[Int]]++ frequentPairs
   }
 
-  /*
-  *runs nphase of Apriori
-  We can follow this pattern as far as we wish. The set C 3 of candidate
-  triples is constructed (implicitly) as the set of triples, any two of which is a
-  pair in L 2 . Our assumption about the sparsity of frequent itemsets, outlined
-  in Section 6.2.4 implies that there will not be too many frequent pairs, so they
-  can be listed in a main-memory table. Likewise, there will not be too many
-  candidate triples, so these can all be counted by a generalization of the triples
-  method. That is, while triples are used to count pairs, we would use quadruples,
-  consisting of the three item codes and the associated count, when we want to
-  count triples. Similarly, we can count sets of size k using tuples with k + 1
-  components, the last of which is the count, and the first k of which are the item
-  codes, in sorted order.
-  To find L 3 we make a third pass through the basket file. For each basket,
-  we need only look at those items that are in L 1 . From these items, we can
-  examine each pair and determine whether or not that pair is in L 2 . Any item
-  of the basket that does not appear in at least two frequent pairs, both of which
-  consist of items in the basket, cannot be part of a frequent triple that the
-  basket contains. Thus, we have a fairly limited search for triples that are both
-  contained in the basket and are candidates in C 3 . Any such triples found have
-  1 added to their count.
-  * */
-  def runPhaseN(baskets: Array[Iterable[Int]], phase: Int, frequentItemsSets: mutable.HashMap[Int, mutable.HashSet[mutable.Iterable[Int]]], itemsIndex: mutable.HashMap[Int, Int]): mutable.HashSet[mutable.Iterable[Int]] = {
-    var tempfrequentItemsSets = new mutable.HashSet[mutable.Iterable[Int]]()
-    val lastFreqItemSet:mutable.HashSet[mutable.Iterable[Int]] = frequentItemsSets(phase-1)
-    val tempFreqSingletonsInLastItemSet:mutable.HashSet[Int]=makeSingletons(lastFreqItemSet)
-    println(tempFreqSingletonsInLastItemSet.mkString("  "))
-    tempfrequentItemsSets
+   /*
+        *runs nphase of Apriori
+        We can follow this pattern as far as we wish. The set C 3 of candidate
+        triples is constructed (implicitly) as the set of triples, any two of which is a
+        pair in L 2 . Our assumption about the sparsity of frequent itemsets, outlined
+        in Section 6.2.4 implies that there will not be too many frequent pairs, so they
+        can be listed in a main-memory table. Likewise, there will not be too many
+        candidate triples, so these can all be counted by a generalization of the triples
+        method. That is, while triples are used to count pairs, we would use quadruples,
+        consisting of the three item codes and the associated count, when we want to
+        count triples. Similarly, we can count sets of size k using tuples with k + 1
+        components, the last of which is the count, and the first k of which are the item
+        codes, in sorted order.
+        To find L 3 we make a third pass through the basket file. For each basket,
+        we need only look at those items that are in L 1 . From these items, we can
+        examine each pair and determine whether or not that pair is in L 2 . Any item
+        of the basket that does not appear in at least two frequent pairs, both of which
+        consist of items in the basket, cannot be part of a frequent triple that the
+        basket contains. Thus, we have a fairly limited search for triples that are both
+        contained in the basket and are candidates in C 3 . Any such triples found have
+        1 added to their count.
+        for higher orders, I am creating a gatekeeper singleton array from last freuent itemset. this will save time i guess
+        we dont need the new indices in triples approach
+        * */
+  def runPhaseN(baskets: Array[Iterable[Int]], phase: Int, frequentItemsSets: mutable.HashMap[Int, HashSet[Set[Int]]],support:Int): HashSet[Set[Int]] = {
+    val lastFreqItemSet:HashSet[Set[Int]] = frequentItemsSets(phase-1)
+    val tempFreqSingletonsInLastItemSet:HashSet[Int]=makeSingletons(lastFreqItemSet)
+    var candidatePairs = new mutable.HashMap[Set[Int],Int]()
+    for (basket <- baskets){
+      var freqItemsInBasket = new mutable.HashSet[Int]()
+      for (item <- basket){
+        if (tempFreqSingletonsInLastItemSet.contains(item)) freqItemsInBasket += item
+      }
+      if (freqItemsInBasket.size >= phase) candidatePairs = updateCandidatePair(candidatePairs,(new HashSet[Int]++freqItemsInBasket),lastFreqItemSet,phase)
+    }
+    findTrulyFrequent(candidatePairs,support)
+  }
+
+  def findTrulyFrequent(candidatePairs: mutable.HashMap[Set[Int], Int], support: Int):HashSet[Set[Int]] = {
+    var temp = new mutable.HashSet[Set[Int]]()
+    for ((candidate,count) <- candidatePairs){
+      if (count >= support) temp += candidate
+    }
+//    val tempSorted = SortedSet[Set[Int]]()++temp
+    new HashSet[Set[Int]]++temp
+  }
+
+  def updateCandidatePair(candidatePairs: mutable.HashMap[Set[Int], Int], freqItemsInBasket: HashSet[Int], lastFreqItemSet:HashSet[Set[Int]],phase:Int): _root_.scala.collection.mutable.HashMap[immutable.Set[Int], Int] = {
+
+    var tempCP = candidatePairs
+    val itr1 = freqItemsInBasket.subsets(phase)
+    while (itr1.hasNext){
+      val combo = itr1.next()
+      if (tempCP.contains(combo)){
+        tempCP(combo) += 1
+      } else {
+        var candidate = true
+        val itr2 = combo.subsets(phase-1)
+        breakable(
+          while(itr2.hasNext){
+            val constituent = itr2.next()
+            if (!lastFreqItemSet.contains(constituent)){
+              candidate = false
+              break()
+            }
+          })
+        if (candidate){
+          val temp = SortedSet[Int]()++combo
+          tempCP(temp)=1
+        }
+      }
+    }
+    tempCP
   }
 
   /*
@@ -214,8 +259,8 @@ val k = ((i-1)*(n-i.toFloat/2)+(j-i)).toInt
   /*
   * finds frequent items pairs
   */
-  private def findFrequentPairsFromMatrix(itemPairCountArray: Array[Int],support:Int, newItemIndex: Array[Int], indexItems: mutable.HashMap[Int, Int],n:Int): mutable.HashSet[mutable.Iterable[Int]] ={
-    var frequentPairs = mutable.HashSet[mutable.Iterable[Int]]()
+  private def findFrequentPairsFromMatrix(itemPairCountArray: Array[Int],support:Int, newItemIndex: Array[Int], indexItems: mutable.HashMap[Int, Int],n:Int): mutable.HashSet[immutable.Set[Int]] ={
+    var frequentPairs = mutable.HashSet[immutable.Set[Int]]()
     for (a <- 0 until newItemIndex.length-1){
       if (newItemIndex(a) !=0){
         for (b <- a+1 until newItemIndex.length){
@@ -226,7 +271,7 @@ val k = ((i-1)*(n-i.toFloat/2)+(j-i)).toInt
             if (itemPairCountArray(k) >= support){
               val item1 = indexItems(a)
               val item2 = indexItems(b)
-              if (item1 < item2) frequentPairs += mutable.Iterable(item1,item2) else frequentPairs += mutable.Iterable(item2,item1)
+              if (item1 < item2) frequentPairs += immutable.Set(item1,item2) else frequentPairs += immutable.Set(item2,item1)
             }
           }
         }
@@ -297,14 +342,14 @@ val k = ((i-1)*(n-i.toFloat/2)+(j-i)).toInt
 //    print(temp.mkString("\n"))
   }
 
-  def makeSingletons(lastFreqItemSet: mutable.HashSet[mutable.Iterable[Int]]):mutable.HashSet[Int]={
+  def makeSingletons(lastFreqItemSet: HashSet[Set[Int]]):HashSet[Int]={
     var temp = new mutable.HashSet[Int]()
     for(itemSet <- lastFreqItemSet){
       for (item <- itemSet){
         temp += item
       }
     }
-    temp
+    new HashSet[Int]()++temp
   }
 
 //  private def addResultsofPhase1(newItemIndex: Array[Int], frequentItemsSets: mutable.HashMap[Int, Any]):mutable.HashMap[Int,Any]={
