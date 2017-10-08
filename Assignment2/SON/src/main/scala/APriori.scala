@@ -13,15 +13,21 @@ object APriori {
     * */
   def runApriori( baskets:Array[Iterable[Int]], support:Int): Unit = {
     var frequentItemsSets = new mutable.HashMap[Int,HashSet[Set[Int]]]()
+
+    //phase 1
     var (itemsIndex,itemCountsArray) = runPhase1(baskets)
     val (newItemIndex,numFreqSingletons) = runPhaseBeforePhase2(itemCountsArray,support)
     var frequentCombosFoundInCurrentPhase = (numFreqSingletons != 0) //this variable is the flag used to stop the loop when no more frequent items are found
-    var frequentPairs = runPhase2(baskets,itemsIndex,newItemIndex,numFreqSingletons,support)
-    frequentItemsSets = addResultsofPhase1(newItemIndex,frequentItemsSets,itemsIndex)
-//    println(frequentPairs.mkString("  "))
-    frequentItemsSets += ((2,frequentPairs))
-//    println(frequentItemsSets(2).mkString("\n"))
-    frequentCombosFoundInCurrentPhase = (frequentPairs.size != 0)
+
+    //phase 2
+    if (frequentCombosFoundInCurrentPhase) {
+      frequentItemsSets = addResultsofPhase1(newItemIndex,frequentItemsSets,itemsIndex)
+      var frequentPairs = runPhase2(baskets,itemsIndex,newItemIndex,numFreqSingletons,support)
+      frequentCombosFoundInCurrentPhase = (frequentPairs.size != 0)
+      if (frequentCombosFoundInCurrentPhase) frequentItemsSets += ((2,frequentPairs))
+    }
+
+    //further 3+
     var phase = 3 //initialises phase 3
     while (frequentCombosFoundInCurrentPhase){
       var thisPhaseFreqItemsets:HashSet[Set[Int]] = runPhaseN(baskets,phase,frequentItemsSets,support)
