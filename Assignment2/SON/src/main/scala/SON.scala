@@ -9,6 +9,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
 import scodec.bits.BitVector
 
+import scala.collection.immutable.HashSet
 import scala.collection.mutable
 
 object SON {
@@ -21,19 +22,31 @@ object SON {
     val sc = new SparkContext(conf) //spark context is the interface with cluster
 
     //input parameters
-    val caseNumber = 2
+    val caseNumber = 1
     val usersFile = "/home/saurav/Documents/Data Mining/Assignments/CSCI-541/Data/ml-1m/users.dat"
     val ratingsFile = "/home/saurav/Documents/Data Mining/Assignments/CSCI-541/Data/ml-1m/ratings.dat"
-    val support = 500
+    val support = 1300
     var gender = sc.broadcast("")
     if (caseNumber == 1) gender = sc.broadcast("M") else gender = sc.broadcast("F")
     val userGenderBitVector = sc.broadcast(findUsers(sc,usersFile,gender))
     val baskets = makeBaskets(sc, ratingsFile, userGenderBitVector,caseNumber)
     gender.destroy()
     userGenderBitVector.destroy()
-    APriori.runApriori(baskets,support)
+    var basketsRDD = sc.parallelize(baskets)
+    val reducedSupport = sc.broadcast(1300/basketsRDD.getNumPartitions)
+    val candidateItemSets = basketsRDD.mapPartitions(i => callAprioriOnPartition(i,reducedSupport)).reduceByKey(joinSets).collect()
+    reducedSupport.destroy()
     sc.stop()
   }
+
+  def joinSets(x:HashSet[Set[Int]],y:HashSet[Set[Int]]):HashSet[Set[Int]]={
+    x.union(y)
+  }
+
+  def callAprioriOnPartition(iterator: Iterator[Iterable[Int]], support: Broadcast[Int]):Iterator[(Int,HashSet[Set[Int]])]={
+    APriori.runApriori(iterator,support.value)
+  }
+
   def makeBaskets(sc: SparkContext, filename: String, userGenderBitVector: Broadcast[BitVector], caseNumber: Int): Array[Iterable[Int]] = {
     val path = new File(filename).getCanonicalPath
     val storageLevel = StorageLevel.MEMORY_ONLY
@@ -76,7 +89,7 @@ object SON {
   }
 
     /*
-    * genera
+    * generates uid users of specific gender
     * */
   def generate_gender_KV_pairs(line:String, gender: Broadcast[String]): Int = {
     val split_line =  line.split("::")

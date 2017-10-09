@@ -11,9 +11,9 @@ object APriori {
     * It runs phase 1 and 2 pHase 2 manually. This is because Phase implements upper triangular matrix
     * Further phases run in a loop and use triples method to store the data.
     * */
-  def runApriori( baskets:Array[Iterable[Int]], support:Int): Unit = {
+  def runApriori( basketsRDD:Iterator[Iterable[Int]], support:Int)= {
     var frequentItemsSets = new mutable.HashMap[Int,HashSet[Set[Int]]]()
-
+    val baskets = basketsRDD.toIterable
     //phase 1
     var (itemsIndex,itemCountsArray) = runPhase1(baskets)
     val (newItemIndex,numFreqSingletons) = runPhaseBeforePhase2(itemCountsArray,support)
@@ -22,7 +22,7 @@ object APriori {
     //phase 2
     if (frequentCombosFoundInCurrentPhase) {
       frequentItemsSets = addResultsofPhase1(newItemIndex,frequentItemsSets,itemsIndex)
-      var frequentPairs = runPhase2(baskets,itemsIndex,newItemIndex,numFreqSingletons,support)
+      var frequentPairs = runPhase2(baskets, itemsIndex, newItemIndex, numFreqSingletons, support)
       frequentCombosFoundInCurrentPhase = (frequentPairs.size != 0)
       if (frequentCombosFoundInCurrentPhase) frequentItemsSets += ((2,frequentPairs))
     }
@@ -30,12 +30,13 @@ object APriori {
     //further 3+
     var phase = 3 //initialises phase 3
     while (frequentCombosFoundInCurrentPhase){
-      var thisPhaseFreqItemsets:HashSet[Set[Int]] = runPhaseN(baskets,phase,frequentItemsSets,support)
+      var thisPhaseFreqItemsets:HashSet[Set[Int]] = runPhaseN(baskets, phase, frequentItemsSets, support)
       frequentCombosFoundInCurrentPhase = (thisPhaseFreqItemsets.size != 0)
       if (frequentCombosFoundInCurrentPhase) frequentItemsSets(phase)=thisPhaseFreqItemsets
       phase +=1
     }
-  println(frequentItemsSets.mkString("\n"))
+//  println(frequentItemsSets.mkString("\n"))
+    frequentItemsSets.iterator
   }
 
   def addResultsofPhase1(newItemIndex: Array[Int], frequentItemsSets: mutable.HashMap[Int, HashSet[Set[Int]]],itemsIndex:mutable.HashMap[Int,Int]):mutable.HashMap[Int,HashSet[Set[Int]]] = {
@@ -59,7 +60,7 @@ object APriori {
     counts, and we add 1 to the integer found there.
   * */
 
-  def runPhase1(baskets: Array[Iterable[Int]]):(mutable.HashMap[Int,Int],Array[Int]) = {
+  def runPhase1(baskets: Iterable[Iterable[Int]]):(mutable.HashMap[Int,Int],Array[Int]) = {
     var itemCounts = new HashMap[Int,Int]().withDefaultValue(0) //itemCounts is the variable that stores the number of times each item has been rated.
     for (basket <- baskets){
       for (item <- basket){
@@ -144,7 +145,7 @@ object APriori {
       determine which pairs are frequent.
       *freqItemsInBasket - contains the indices of the items not the ids
     * */
-  def runPhase2(baskets:Array[Iterable[Int]], itemIndex:mutable.HashMap[Int,Int], newItemIndex: Array[Int], numFreqSingletons:Int,support:Int):HashSet[immutable.Set[Int]] = {
+  def runPhase2(baskets: Iterable[Iterable[Int]], itemIndex: mutable.HashMap[Int, Int], newItemIndex: Array[Int], numFreqSingletons: Int, support: Int):HashSet[Set[Int]] = {
     var itemPairCountArray = new Array[Int](numFreqSingletons*numFreqSingletons/2)
     var indexItems = itemIndex.map(_.swap) //k,v reversed
     for (basket <- baskets){
@@ -184,7 +185,7 @@ object APriori {
         for higher orders, I am creating a gatekeeper singleton array from last freuent itemset. this will save time i guess
         we dont need the new indices in triples approach
         * */
-  def runPhaseN(baskets: Array[Iterable[Int]], phase: Int, frequentItemsSets: mutable.HashMap[Int, HashSet[Set[Int]]],support:Int): HashSet[Set[Int]] = {
+  def runPhaseN(baskets: Iterable[Iterable[Int]], phase: Int, frequentItemsSets: mutable.HashMap[Int, HashSet[Set[Int]]], support: Int): HashSet[Set[Int]] = {
     val lastFreqItemSet:HashSet[Set[Int]] = frequentItemsSets(phase-1)
     val tempFreqSingletonsInLastItemSet:HashSet[Int]=makeSingletons(lastFreqItemSet)
     var candidatePairs = new mutable.HashMap[Set[Int],Int]()
