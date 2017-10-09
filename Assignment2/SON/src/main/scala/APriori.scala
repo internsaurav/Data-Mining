@@ -365,9 +365,4 @@ val k = ((i-1)*(n-i.toFloat/2)+(j-i)).toInt
     }
     new HashSet[Int]()++temp
   }
-
-//  private def addResultsofPhase1(newItemIndex: Array[Int], frequentItemsSets: mutable.HashMap[Int, Any]):mutable.HashMap[Int,Any]={
-//    var frequentItemsSets = new mutable.HashMap[Int,Any]()
-//
-//  }
 }

@@ -21,10 +21,10 @@ object SON {
     val sc = new SparkContext(conf) //spark context is the interface with cluster
 
     //input parameters
-    val caseNumber = 1
+    val caseNumber = 2
     val usersFile = "/home/saurav/Documents/Data Mining/Assignments/CSCI-541/Data/ml-1m/users.dat"
     val ratingsFile = "/home/saurav/Documents/Data Mining/Assignments/CSCI-541/Data/ml-1m/ratings.dat"
-    val support = 1200
+    val support = 500
     var gender = sc.broadcast("")
     if (caseNumber == 1) gender = sc.broadcast("M") else gender = sc.broadcast("F")
     val userGenderBitVector = sc.broadcast(findUsers(sc,usersFile,gender))
@@ -43,19 +43,14 @@ object SON {
     baskets
   }
 
-//  def makeMovieBaskets(sc: SparkContext, filename:String, userGenderBitVector:Broadcast[BitVector]): Array[(Int,Iterable[Int])] = {
-//    val path = new File(filename).getCanonicalPath
-//    val storageLevel = StorageLevel.MEMORY_ONLY
-//    val dist_ratings_data = sc.textFile(path).persist(storageLevel) //creates RDDs of Strings
-//    val movieBasketsKV = dist_ratings_data.map(line => generate_user_movie_KV_pairs(line,userGenderBitVector)).groupByKey().collect()
-//    dist_ratings_data.unpersist()
-//    movieBasketsKV
-//  }
-
+  /*
+  * generates the key value pairs of mapping each basket name to 1 item of that basket
+  * uid<userGenderBitVector.value.length - opposite gender users having UIDs greater than the max of Uid of this gender are also rejected
+  * */
   def generate_user_movie_KV_pairs(line: String, userGenderBitVector: Broadcast[BitVector], caseNumber: Int): (Int,Int) = {
     val split_line =  line.split("::")
     val uid = split_line(0).toInt
-    if(userGenderBitVector.value.get(uid)) {
+    if( uid<userGenderBitVector.value.length &&  userGenderBitVector.value.get(uid)) {
       if (caseNumber == 1) (uid,split_line(1).toInt) else (split_line(1).toInt,uid)
     } else (0,0)
   }
@@ -71,9 +66,8 @@ object SON {
     val storageLevel = StorageLevel.MEMORY_ONLY
     val dist_users_data = sc.textFile(path).persist(storageLevel) //creates RDDs of Strings
     val UID_gender_KV = dist_users_data.map(line => generate_gender_KV_pairs(line,gender)).collect()
-    val numUsers = UID_gender_KV.length
+    val numUsers = UID_gender_KV.max
     dist_users_data.unpersist()
-    var arr = new Array[Int](numUsers+1)
     var userGenderBitVector = BitVector.low(numUsers+1)
     for (index <- UID_gender_KV){
       userGenderBitVector=userGenderBitVector.set(index)
@@ -81,6 +75,9 @@ object SON {
     userGenderBitVector
   }
 
+    /*
+    * genera
+    * */
   def generate_gender_KV_pairs(line:String, gender: Broadcast[String]): Int = {
     val split_line =  line.split("::")
     if(split_line(1) == gender.value) split_line(0).toInt else 0
