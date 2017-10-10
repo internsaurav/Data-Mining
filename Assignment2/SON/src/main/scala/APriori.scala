@@ -10,10 +10,13 @@ object APriori {
     * This function runs Apriori till no more frequent items are found
     * It runs phase 1 and 2 pHase 2 manually. This is because Phase implements upper triangular matrix
     * Further phases run in a loop and use triples method to store the data.
+    *
+    * itemsIndex = map{ uid -> index}
     * */
-  def runApriori( basketsRDD:Iterator[Iterable[Int]], support:Int)= {
+  def runApriori( basketsRDD:Iterator[Iterable[Int]], supportPerBasket:Float)= {
     var frequentItemsSets = new mutable.HashMap[Int,HashSet[Set[Int]]]()
     val baskets = basketsRDD.toIterable
+    val support = (baskets.size * supportPerBasket).toInt
     //phase 1
     var (itemsIndex,itemCountsArray) = runPhase1(baskets)
     val (newItemIndex,numFreqSingletons) = runPhaseBeforePhase2(itemCountsArray,support)
@@ -27,15 +30,15 @@ object APriori {
       if (frequentCombosFoundInCurrentPhase) frequentItemsSets += ((2,frequentPairs))
     }
 
-    //further 3+
-    var phase = 3 //initialises phase 3
-    while (frequentCombosFoundInCurrentPhase){
-      var thisPhaseFreqItemsets:HashSet[Set[Int]] = runPhaseN(baskets, phase, frequentItemsSets, support)
-      frequentCombosFoundInCurrentPhase = (thisPhaseFreqItemsets.size != 0)
-      if (frequentCombosFoundInCurrentPhase) frequentItemsSets(phase)=thisPhaseFreqItemsets
-      phase +=1
-    }
-//  println(frequentItemsSets.mkString("\n"))
+//    //further 3+
+//    var phase = 3 //initialises phase 3
+//    while (frequentCombosFoundInCurrentPhase){
+//      var thisPhaseFreqItemsets:HashSet[Set[Int]] = runPhaseN(baskets, phase, frequentItemsSets, support)
+//      frequentCombosFoundInCurrentPhase = (thisPhaseFreqItemsets.size != 0)
+//      if (frequentCombosFoundInCurrentPhase) frequentItemsSets(phase)=thisPhaseFreqItemsets
+//      phase +=1
+//    }
+////  println(frequentItemsSets.mkString("\n"))
     frequentItemsSets.iterator
   }
 
@@ -156,7 +159,6 @@ object APriori {
       }
       if (freqItemsInBasket.size > 1) itemPairCountArray = incrementValuesInTriangularMatrix(freqItemsInBasket,itemPairCountArray,itemIndex,indexItems,newItemIndex,numFreqSingletons)
     }
-
     var frequentPairs = findFrequentPairsFromMatrix(itemPairCountArray,support,newItemIndex,indexItems,numFreqSingletons)
     new HashSet[Set[Int]]++ frequentPairs
   }
@@ -255,16 +257,9 @@ object APriori {
     val n = numFreqSingletons
     val itr = freqItemsInBasket.subsets(2)
     while (itr.hasNext){
-      val pair = itr.next().toArray
-      var i,j = 0
-      if (pair(0)<pair(1)){
-        i=pair(0)
-        j=pair(1)
-      }
-      else{
-        i=pair(1)
-        j=pair(0)
-      }
+      val pair = itr.next()
+      val i = pair.min
+      val j = pair.max
 val k = ((i-1)*(n-i.toFloat/2)+(j-i)).toInt
       triangularMatrix(k) += 1
     }
@@ -283,11 +278,14 @@ val k = ((i-1)*(n-i.toFloat/2)+(j-i)).toInt
             val i = newItemIndex(a)
             val j = newItemIndex(b)
             val k = ((i-1)*(n-i.toFloat/2)+(j-i)).toInt
+            println("pair considered is" + indexItems(a)+","+indexItems(b))
+            println("support " +itemPairCountArray(k))
             if (itemPairCountArray(k) >= support){
+              println("Pass")
               val item1 = indexItems(a)
               val item2 = indexItems(b)
               if (item1 < item2) frequentPairs += immutable.Set(item1,item2) else frequentPairs += immutable.Set(item2,item1)
-            }
+            } else {println("fail")}
           }
         }
       }
