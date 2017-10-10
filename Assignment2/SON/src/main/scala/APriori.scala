@@ -22,7 +22,7 @@ object APriori {
     val (newItemIndex,numFreqSingletons) = runPhaseBeforePhase2(itemCountsArray,support)
     var frequentCombosFoundInCurrentPhase = (numFreqSingletons != 0) //this variable is the flag used to stop the loop when no more frequent items are found
 
-    //phase 2
+//    //phase 2
     if (frequentCombosFoundInCurrentPhase) {
       frequentItemsSets = addResultsofPhase1(newItemIndex,frequentItemsSets,itemsIndex)
       var frequentPairs = runPhase2(baskets, itemsIndex, newItemIndex, numFreqSingletons, support)
@@ -31,14 +31,17 @@ object APriori {
     }
 
 //    //further 3+
-//    var phase = 3 //initialises phase 3
-//    while (frequentCombosFoundInCurrentPhase){
-//      var thisPhaseFreqItemsets:HashSet[Set[Int]] = runPhaseN(baskets, phase, frequentItemsSets, support)
-//      frequentCombosFoundInCurrentPhase = (thisPhaseFreqItemsets.size != 0)
-//      if (frequentCombosFoundInCurrentPhase) frequentItemsSets(phase)=thisPhaseFreqItemsets
-//      phase +=1
-//    }
-////  println(frequentItemsSets.mkString("\n"))
+    var phase = 3 //initialises phase 3
+    while (frequentCombosFoundInCurrentPhase){
+      frequentItemsSets = addResultsofPhase1(newItemIndex,frequentItemsSets,itemsIndex)
+      var thisPhaseFreqItemsets:HashSet[Set[Int]] = runPhaseN(baskets, phase, frequentItemsSets, support)
+      frequentCombosFoundInCurrentPhase = (thisPhaseFreqItemsets.size != 0)
+      if (frequentCombosFoundInCurrentPhase) frequentItemsSets(phase)=thisPhaseFreqItemsets
+      phase +=1
+    }
+//    val ordering = Ordering.by[Set[Int],Iterable[Int]](_.toIterable)
+//    val z= SortedSet[Set[Int]]()(ordering)++frequentItemsSets(3)
+//    println(z.mkString("\n"))
     frequentItemsSets.iterator
   }
 
@@ -278,14 +281,14 @@ val k = ((i-1)*(n-i.toFloat/2)+(j-i)).toInt
             val i = newItemIndex(a)
             val j = newItemIndex(b)
             val k = ((i-1)*(n-i.toFloat/2)+(j-i)).toInt
-            println("pair considered is" + indexItems(a)+","+indexItems(b))
-            println("support " +itemPairCountArray(k))
+//            println("pair considered is" + indexItems(a)+","+indexItems(b))
+//            println("support " +itemPairCountArray(k))
             if (itemPairCountArray(k) >= support){
-              println("Pass")
+//              println("Pass")
               val item1 = indexItems(a)
               val item2 = indexItems(b)
               if (item1 < item2) frequentPairs += immutable.Set(item1,item2) else frequentPairs += immutable.Set(item2,item1)
-            } else {println("fail")}
+            }
           }
         }
       }
@@ -355,6 +358,7 @@ val k = ((i-1)*(n-i.toFloat/2)+(j-i)).toInt
 //    print(temp.mkString("\n"))
   }
 
+//  i could have used flatten but i need to hash the values
   def makeSingletons(lastFreqItemSet: HashSet[Set[Int]]):HashSet[Int]={
     var temp = new mutable.HashSet[Int]()
     for(itemSet <- lastFreqItemSet){

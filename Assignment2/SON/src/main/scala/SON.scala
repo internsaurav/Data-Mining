@@ -24,10 +24,10 @@ object SON {
     val sc = new SparkContext(conf) //spark context is the interface with cluster
 
     //input parameters
-    val caseNumber = 1
-    val usersFile = "/home/saurav/Documents/Data Mining/Assignments/CSCI-541/Data/ml-1m/users.dat"
-    val ratingsFile = "/home/saurav/Documents/Data Mining/Assignments/CSCI-541/Data/ml-1m/ratings.dat"
-    val support = sc.broadcast(1300)
+    val caseNumber = 2
+    val usersFile = "/home/saurav/Documents/Data Mining/Assignments/CSCI-541/Data/ml-1m/test_users.dat"
+    val ratingsFile = "/home/saurav/Documents/Data Mining/Assignments/CSCI-541/Data/ml-1m/test_ratings.dat"
+    val support = sc.broadcast(4)
     var gender = sc.broadcast("")
     if (caseNumber == 1) gender = sc.broadcast("M") else gender = sc.broadcast("F")
     val userGenderBitVector = sc.broadcast(findUsers(sc,usersFile,gender))
@@ -36,7 +36,7 @@ object SON {
     userGenderBitVector.destroy()
     val numBaskets = sc.broadcast(baskets.length)
     var basketsRDD = sc.parallelize(baskets)
-    val x = APriori.runApriori(basketsRDD.toLocalIterator,1300.toFloat/baskets.length).map(emitSortedCI)
+//    val x = APriori.runApriori(basketsRDD.toLocalIterator,1300.toFloat/baskets.length).map(emitSortedCI)
 //    for(kv<-x){
 //      val c = kv._2
 //      for (z <- c){
@@ -44,10 +44,10 @@ object SON {
 //      }
 //    }
 
-//    val candidateItemSets = basketsRDD.mapPartitions(i => callAprioriOnPartition(i,support,numBaskets)).reduceByKey(joinSets).map(emitSortedCI).collectAsMap()
+    val candidateItemSets = basketsRDD.mapPartitions(i => callAprioriOnPartition(i,support,numBaskets)).reduceByKey(joinSets).collectAsMap()
 //    println(candidateItemSets.mkString("\n"))
 
-//    runPhase2SON(sc,baskets,candidateItemSets,support)
+    runPhase2SON(sc,baskets,candidateItemSets,support)
     numBaskets.destroy()
     support.destroy()
     sc.stop()
@@ -118,14 +118,14 @@ object SON {
 //    val fre = basketsRDD.mapPartitions(data => countOccurenceOfCandidateItemsInPartition(data,candidateItems)).reduceByKey((x,y) => joinMaps(x,y,supportBV)).map(x=>emitSortedFrequentItems(x)).collectAsMap()
       val fre = basketsRDD.mapPartitions(data => countOccurenceOfCandidateItemsInPartition(data,candidateItems)).reduceByKey((x,y) => joinMaps(x,y)).mapValues(x=>x.retain((k,v) => v>=support.value)).map(x=>emitSortedFrequentItems(x)).collectAsMap()
     println(fre.mkString("\n"))
-//    for((k,v) <- fre){
-//      v.foreach(println)
-//    }
+    for((k,v) <- fre){
+      v.foreach(println)
+    }
   }
 
   def emitSortedFrequentItems(x: (Int, mutable.HashMap[Set[Int], Int])): (Int,Set[Set[Int]])= {
     val v = x._2.keySet
-    val ordering = Ordering.by[Set[Int],Int](_.min)
+    val ordering = Ordering.by[Set[Int],Iterable[Int]](_.toIterable)
     val s = SortedSet[Set[Int]]()(ordering)++v
     (x._1,s)
   }
