@@ -1,6 +1,6 @@
 package frequentItemsets
 
-import java.io.File
+import java.io.{BufferedWriter, File, FileWriter}
 
 import frequentItemsets.APriori.updateCandidatePair
 import org.apache.spark.{Accumulator, SparkConf, SparkContext}
@@ -25,9 +25,9 @@ object SON {
 
     //input parameters
     val caseNumber = 2
-    val usersFile = "/home/saurav/Documents/Data Mining/Assignments/CSCI-541/Data/ml-1m/test_users.dat"
-    val ratingsFile = "/home/saurav/Documents/Data Mining/Assignments/CSCI-541/Data/ml-1m/test_ratings.dat"
-    val support = sc.broadcast(4)
+    val usersFile = "/home/saurav/Documents/Data Mining/Assignments/CSCI-541/Data/ml-1m/users.dat"
+    val ratingsFile = "/home/saurav/Documents/Data Mining/Assignments/CSCI-541/Data/ml-1m/ratings.dat"
+    val support = sc.broadcast(600)
     var gender = sc.broadcast("")
     if (caseNumber == 1) gender = sc.broadcast("M") else gender = sc.broadcast("F")
     val userGenderBitVector = sc.broadcast(findUsers(sc,usersFile,gender))
@@ -36,18 +36,9 @@ object SON {
     userGenderBitVector.destroy()
     val numBaskets = sc.broadcast(baskets.length)
     var basketsRDD = sc.parallelize(baskets)
-//    val x = APriori.runApriori(basketsRDD.toLocalIterator,1300.toFloat/baskets.length).map(emitSortedCI)
-//    for(kv<-x){
-//      val c = kv._2
-//      for (z <- c){
-//        println(z)
-//      }
-//    }
-
     val candidateItemSets = basketsRDD.mapPartitions(i => callAprioriOnPartition(i,support,numBaskets)).reduceByKey(joinSets).collectAsMap()
-//    println(candidateItemSets.mkString("\n"))
-
-    runPhase2SON(sc,baskets,candidateItemSets,support)
+    val frequentItemSets = runPhase2SON(sc,baskets,candidateItemSets,support)
+    writeOutput(frequentItemSets,caseNumber,support.value)
     numBaskets.destroy()
     support.destroy()
     sc.stop()
@@ -111,16 +102,12 @@ object SON {
     if(split_line(1) == gender.value) split_line(0).toInt else 0
   }
 
-  def runPhase2SON(sc: SparkContext, baskets: Array[Iterable[Int]], candidateItemSets: scala.collection.Map[Int, HashSet[Set[Int]]], support: Broadcast[Int]): Unit = {
+  def runPhase2SON(sc: SparkContext, baskets: Array[Iterable[Int]], candidateItemSets: scala.collection.Map[Int, HashSet[Set[Int]]], support: Broadcast[Int]): scala.collection.Map[Int,Set[Set[Int]]] = {
     var frequentItemsSets = new mutable.HashMap[Int,HashSet[Set[Int]]]()
     val candidateItems = sc.broadcast(candidateItemSets)
     val basketsRDD = sc.parallelize(baskets)
-//    val fre = basketsRDD.mapPartitions(data => countOccurenceOfCandidateItemsInPartition(data,candidateItems)).reduceByKey((x,y) => joinMaps(x,y,supportBV)).map(x=>emitSortedFrequentItems(x)).collectAsMap()
-      val fre = basketsRDD.mapPartitions(data => countOccurenceOfCandidateItemsInPartition(data,candidateItems)).reduceByKey((x,y) => joinMaps(x,y)).mapValues(x=>x.retain((k,v) => v>=support.value)).map(x=>emitSortedFrequentItems(x)).collectAsMap()
-    println(fre.mkString("\n"))
-    for((k,v) <- fre){
-      v.foreach(println)
-    }
+    val freISets = basketsRDD.mapPartitions(data => countOccurenceOfCandidateItemsInPartition(data,candidateItems)).reduceByKey((x,y) => joinMaps(x,y)).mapValues(x=>x.retain((k,v) => v>=support.value)).map(x=>emitSortedFrequentItems(x)).collectAsMap()
+    freISets
   }
 
   def emitSortedFrequentItems(x: (Int, mutable.HashMap[Set[Int], Int])): (Int,Set[Set[Int]])= {
@@ -167,56 +154,17 @@ object SON {
     countsMap.iterator
   }
 
-
-
-  //phase 2 SON. here is where we count
-//  def runPhase2SON(sc: SparkContext, baskets: Array[Iterable[Int]], candidateItemSets: scala.collection.Map[Int, HashSet[Set[Int]]], support: Int): Unit = {
-//    var frequentItemsSets = new mutable.HashMap[Int,HashSet[Set[Int]]]()
-//    val maxComboSize = sc.broadcast(candidateItemSets.keySet.max)
-//    val totalCandidates = candidateItemSets.values.flatten.size
-//    //accumArray is an array of accumulators for each candidate set
-//    val accumArray= new Array[Accumulator[Int]](totalCandidates)
-//    //counts map maps each set to an index in the accum array
-//    var countsMap = new mutable.HashMap[Int,mutable.HashMap[Set[Int],Int]]()
-//    var accumIndex = 0
-//    //add reference to accumulator index
-//    for((size,candSet) <- candidateItemSets){
-//      for (cand <- candSet){
-//        accumArray(accumIndex)=sc.accumulator(0)
-//        if (countsMap.contains(size)) countsMap(size) += (cand -> accumIndex) else countsMap(size) = new mutable.HashMap[Set[Int],Int](){cand -> accumIndex}
-//        accumIndex +=1
-//      }
-//    }
-//    val countsMapBV = sc.broadcast(countsMap)
-////    val accumArrayBV = sc.broadcast(accumArray)
-//
-//    var basketsRDD = sc.parallelize(baskets)
-//    basketsRDD.mapPartitions(data => countCombos(data,accumArray,countsMapBV,maxComboSize)).collect()
-//    println(accumArray.mkString(","))
-//    countsMapBV.destroy()
-////    accumArrayBV.destroy()
-//    maxComboSize.destroy()
-//  }
-
-//  def countCombos(dataRDD: Iterator[Iterable[Int]], accumArrayBV: Array[Accumulator[Int]], countsMapBV: Broadcast[mutable.HashMap[Int, mutable.HashMap[Set[Int], Int]]],maxComboSize: Broadcast[Int])= {
-//    val data = dataRDD.toIterable
-//    println("x")
-//    for (basket <- data){
-//      for (comboSize <- 1 to math.min(maxComboSize.value,basket.size)) {
-//        val itr = basket.toSet.subsets(comboSize)
-//        while (itr.hasNext) {
-//          val combo = itr.next()
-//          val accumMap = countsMapBV.value(comboSize)
-//          if (accumMap.contains(combo)){
-//            val accumIndx = accumMap(combo)
-//            accumArrayBV(accumIndx) += 1
-//          }
-//        }
-//      }
-//    }
-//    mutable.Iterable[Int]().toIterator
-//  }
-}
-object SetOrdering extends Ordered[Set[Int]]{
-  override def compare(that: Set[Int]): Int = that.min
+  def writeOutput(frequentItemSets: collection.Map[Int, Set[Set[Int]]], caseNumber:Int, support: Int) = {
+    var outputFileName = s"saurav_sahu_SON.case${caseNumber}_${support}.txt"
+//    println(frequentItemSets)
+    val file = new File(outputFileName)
+    val bw = new BufferedWriter(new FileWriter(file))
+    val maxKeySize = frequentItemSets.keySet.max
+    for (size <- 1 to maxKeySize){
+      val value = frequentItemSets(size)
+      bw.write(value.mkString(","))
+      bw.write("\n")
+    }
+    bw.close()
+  }
 }
