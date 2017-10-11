@@ -13,7 +13,7 @@ import scala.collection.immutable.{HashSet, SortedSet}
 import scala.collection.mutable
 import scala.util.control.Breaks.{break, breakable}
 
-object SON {
+object saurav_sahu_SON {
 
   def main(args: Array[String])={
 
@@ -159,12 +159,21 @@ object SON {
 //    println(frequentItemSets)
     val file = new File(outputFileName)
     val bw = new BufferedWriter(new FileWriter(file))
-    val maxKeySize = frequentItemSets.keySet.max
-    for (size <- 1 to maxKeySize){
-      val value = frequentItemSets(size)
-      bw.write(value.mkString(","))
-      bw.write("\n")
+    var output = ""
+    if (frequentItemSets.size == 0){
+      output = "\n"
+    } else{
+      val maxKeySize = frequentItemSets.keySet.max
+      for (size <- 1 to maxKeySize){
+        val value = frequentItemSets(size)
+        for (itset <- value){
+          output += "("+itset.mkString(",")+"), "
+        }
+        output = output.stripSuffix(", ")
+        output += "\n"
+      }
     }
+    bw.write(output)
     bw.close()
   }
 }
