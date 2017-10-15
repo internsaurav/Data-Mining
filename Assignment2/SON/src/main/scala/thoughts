@@ -48,3 +48,8 @@ now we have freuent items - m length but the array is again n length
 This seems wasteful atfirst because I have to save all these numbers.
 I could have just used a hashmap
 but I need the matrices later on to save
+
+8) How to sve the pairs in the final dictionary. I need something which can be sorted and which is hashable. What I have used is good
+
+9)I cannot use SparkContext.textFile because this creates an RDD of strings which is spread over different cores and threads.
+I cannot access something stored in another nodes memory unless i go through SC.

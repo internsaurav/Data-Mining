@@ -1,14 +1,12 @@
 package frequentItemsets
 
-import java.io.{BufferedWriter, File, FileWriter}
+import java.io.{BufferedWriter, File, FileWriter, PrintWriter}
 
 import frequentItemsets.APriori.updateCandidatePair
 import org.apache.spark.{Accumulator, SparkConf, SparkContext}
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
-import scodec.bits.BitVector
-
 import scala.collection.immutable.{HashSet, SortedSet}
 import scala.collection.mutable
 import scala.util.control.Breaks.{break, breakable}
@@ -24,10 +22,10 @@ object saurav_sahu_SON {
     val sc = new SparkContext(conf) //spark context is the interface with cluster
 
     //input parameters
-    val caseNumber = 2
-    val usersFile = "/home/saurav/Documents/Data Mining/Assignments/CSCI-541/Data/ml-1m/users.dat"
-    val ratingsFile = "/home/saurav/Documents/Data Mining/Assignments/CSCI-541/Data/ml-1m/ratings.dat"
-    val support = sc.broadcast(600)
+    val caseNumber = args(0).toInt
+    val usersFile = args(2)
+    val ratingsFile = args(1)
+    val support = sc.broadcast(args(3).toInt)
     var gender = sc.broadcast("")
     if (caseNumber == 1) gender = sc.broadcast("M") else gender = sc.broadcast("F")
     val userGenderBitVector = sc.broadcast(findUsers(sc,usersFile,gender))
@@ -53,7 +51,7 @@ object saurav_sahu_SON {
     APriori.runApriori(iterator, supportPerBasket)
   }
 
-  def makeBaskets(sc: SparkContext, filename: String, userGenderBitVector: Broadcast[BitVector], caseNumber: Int): Array[Iterable[Int]] = {
+  def makeBaskets(sc: SparkContext, filename: String, userGenderBitVector: Broadcast[Array[Int]], caseNumber: Int): Array[Iterable[Int]] = {
     val path = new File(filename).getCanonicalPath
     val storageLevel = StorageLevel.MEMORY_ONLY
     val dist_ratings_data = sc.textFile(path).persist(storageLevel) //creates RDDs of Strings
@@ -66,10 +64,10 @@ object saurav_sahu_SON {
   * generates the key value pairs of mapping each basket name to 1 item of that basket
   * uid<userGenderBitVector.value.length - opposite gender users having UIDs greater than the max of Uid of this gender are also rejected
   * */
-  def generate_user_movie_KV_pairs(line: String, userGenderBitVector: Broadcast[BitVector], caseNumber: Int): (Int,Int) = {
+  def generate_user_movie_KV_pairs(line: String, userGenderBitVector: Broadcast[Array[Int]], caseNumber: Int): (Int,Int) = {
     val split_line =  line.split("::")
     val uid = split_line(0).toInt
-    if( uid<userGenderBitVector.value.length &&  userGenderBitVector.value.get(uid)) {
+    if( uid<userGenderBitVector.value.length &&  userGenderBitVector.value(uid) == 1) {
       if (caseNumber == 1) (uid,split_line(1).toInt) else (split_line(1).toInt,uid)
     } else (0,0)
   }
@@ -80,16 +78,16 @@ object saurav_sahu_SON {
   * @filename- Name of the Users file
   * @gender- the specific gender we want to find
   * */
-  def findUsers(sc: SparkContext, filename: String, gender: Broadcast[String]):BitVector = {
+  def findUsers(sc: SparkContext, filename: String, gender: Broadcast[String]):Array[Int] = {
     val path = new File(filename).getCanonicalPath
     val storageLevel = StorageLevel.MEMORY_ONLY
     val dist_users_data = sc.textFile(path).persist(storageLevel) //creates RDDs of Strings
     val UID_gender_KV = dist_users_data.map(line => generate_gender_KV_pairs(line,gender)).collect()
     val numUsers = UID_gender_KV.max
     dist_users_data.unpersist()
-    var userGenderBitVector = BitVector.low(numUsers+1)
+    var userGenderBitVector = new Array[Int](numUsers+1)
     for (index <- UID_gender_KV){
-      userGenderBitVector=userGenderBitVector.set(index)
+      userGenderBitVector(index) = 1
     }
     userGenderBitVector
   }
@@ -158,7 +156,7 @@ object saurav_sahu_SON {
     var outputFileName = s"saurav_sahu_SON.case${caseNumber}_${support}.txt"
 //    println(frequentItemSets)
     val file = new File(outputFileName)
-    val bw = new BufferedWriter(new FileWriter(file))
+    val pw = new PrintWriter(file)
     var output = ""
     if (frequentItemSets.size == 0){
       output = "\n"
@@ -173,7 +171,7 @@ object saurav_sahu_SON {
         output += "\n"
       }
     }
-    bw.write(output)
-    bw.close()
+    pw.write(output)
+    pw.close()
   }
 }
