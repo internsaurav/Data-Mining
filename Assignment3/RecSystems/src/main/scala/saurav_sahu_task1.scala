@@ -2,19 +2,25 @@ package recSystems
 
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.{SparkConf, SparkContext}
+import org.apache.spark.mllib.recommendation.{ALS, MatrixFactorizationModel, Rating}
+import org.apache.spark.rdd.RDD
 
 import collection.mutable
+
 /*
 */
 object saurav_sahu_task1 {
-  def main(args: Array[String])={
+
+  def main(args: Array[String]):Unit={
 
     val ratingsFilePath = args(0)
     val testDataPath = args(1)
     val sc = makeSparkContext()
-    extractTrainingData(sc,ratingsFilePath,testDataPath)
-
-
+    val (trainingDataKV,testingDataKV) = extractTrainingData(sc,ratingsFilePath,testDataPath)
+    val ratingsRDD = sc.parallelize(trainingDataKV)
+    val model = buildRecModel(ratingsRDD)
+    val testingDataRDD = sc.parallelize(testingDataKV)
+    val predictions = predictFromModesl(model,testingDataRDD)
     sc.stop()
   }
 
@@ -24,8 +30,6 @@ object saurav_sahu_task1 {
     val conf = new SparkConf().setMaster(master).setAppName(appName)
     new SparkContext(conf) //spark context is the interface with cluster
   }
-
-
 
   /*
     Specifically,	you	should	first	extract	training	data	from
@@ -38,9 +42,9 @@ object saurav_sahu_task1 {
       testingDataHashSet += x
     }
     val testingDataBroadcastVar = sc.broadcast(testingDataHashSet)
-    val trainingDataKV = sc.textFile(ratingsFilePath).mapPartitions(data => findTrainingData(data,testingDataBroadcastVar)).collect()
+    val trainingDataKV = sc.textFile(ratingsFilePath).mapPartitions(data => findTrainingAndData(data,testingDataBroadcastVar)).collect()
     testingDataBroadcastVar.destroy()
-    println(trainingDataKV.mkString("\n"))
+    (trainingDataKV,testingDataTuples)
   }
 
   /*
@@ -54,16 +58,29 @@ object saurav_sahu_task1 {
   /*
   * it checks if the current data is in the testing set, if not emits the data
   * */
-  def findTrainingData(data: Iterator[String], testingDataBroadcastVar: Broadcast[mutable.HashSet[(Int, Int)]]): Iterator[((Int,Int),Float)] = {
-    var trainingDataSet = new mutable.HashSet[((Int,Int),Float)]()
+  def findTrainingAndData(data: Iterator[String], testingDataBroadcastVar: Broadcast[mutable.HashSet[(Int, Int)]]): Iterator[Rating] = {
+    var trainingDataSet = new mutable.HashSet[Rating]()
     for (line <- data){
       val lineSplit = line.split(",")
       if (lineSplit(0) != "userId"){
         val userId = lineSplit(0).toInt
         val movieId = lineSplit(1).toInt
-        if (!testingDataBroadcastVar.value.contains((userId,movieId))) trainingDataSet += (((userId,movieId),lineSplit(2).toFloat))
+        val rating = lineSplit(2).toDouble
+        if (!testingDataBroadcastVar.value.contains((userId,movieId))) trainingDataSet += Rating(userId,movieId,rating)
       }
     }
     trainingDataSet.toIterator
+  }
+
+  def buildRecModel(ratings:RDD[Rating]):MatrixFactorizationModel={
+    val rank = 5
+    val numIterations = 10
+    val lambda = 0.01
+    new ALS().setRank(rank).setIterations(numIterations).setLambda(lambda).run(ratings)
+  }
+
+  def predictFromModesl(model: MatrixFactorizationModel, testingDataRDD: RDD[(Int, Int)]) = {
+    val x = model.predict(testingDataRDD).collect()
+    println(x.mkString("\n"))
   }
 }
