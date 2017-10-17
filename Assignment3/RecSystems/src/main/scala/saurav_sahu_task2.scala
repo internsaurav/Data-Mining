@@ -12,6 +12,7 @@ object saurav_sahu_task2 {
   def main(args: Array[String])={
     val ratingsFilePath = args(0)
     val testDataPath = args(1)
+    val moviesDataPath = args(2)
     val sc = makeSparkContext()
     val (trainingDataKV,testingDataKV,testingGroundDataKV) = extractTrainingData(sc,ratingsFilePath,testDataPath)
 //    println(testingDataKV.mkString(","))
@@ -59,7 +60,7 @@ object saurav_sahu_task2 {
   def itemBasedCF(testingDataKV: Iterator[(Int, Int)], userItemRatingsArray:Broadcast[Array[Array[Double]]], usersIndex:Broadcast[mutable.HashMap[Int, Int]], itemsIndex:Broadcast[ mutable.HashMap[Int, Int]]) = {
     val similarItemDictionary = mutable.HashMap[Int,IndexedSeq[(Int,Float)]]()
     val predictedRatings = mutable.HashMap[(Int,Int),Double]()
-    val defaultRating = 3.0
+    val defaultRating = 3.2
     while (testingDataKV.hasNext){
       val userItemSample = testingDataKV.next()
       val user = userItemSample._1
@@ -96,7 +97,7 @@ object saurav_sahu_task2 {
     val numUsers = i.length
     val (iAvg,jAvg,numCoratingUsers) = findAverageRating(i,j)
     var pcc = 0.0
-    val minimumNumberOfCoratingUsers = 5
+    val minimumNumberOfCoratingUsers = 50
     if (numCoratingUsers > minimumNumberOfCoratingUsers) {
       var numerator = 0.0
       var denominator1 = 0.0
@@ -157,7 +158,7 @@ object saurav_sahu_task2 {
     val neighbourhoodSize = 50
 //    println(neighbourhoodSize)
     var numerator,denominator =0.0
-    val defaultRating = 3.0
+    val defaultRating = 3.4
     var count,i = 0
     while (count < neighbourhoodSize && i < similarItemsSeq.length){
       val similarItemWithPCC = similarItemsSeq(i)
