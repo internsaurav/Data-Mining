@@ -1,8 +1,9 @@
 package recSystems
 
 import org.apache.spark.SparkContext
+import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.mllib.recommendation.Rating
-import recSystems.saurav_sahu_task1.{extractTrainingData, makeSparkContext}
+import recSystems.saurav_sahu_task1.{extractTrainingData, makeSparkContext,printAccuracyInfo,writeSortedOutput}
 
 import scala.collection.mutable
 
@@ -13,18 +14,14 @@ object saurav_sahu_task2 {
     val testDataPath = args(1)
     val sc = makeSparkContext()
     val (trainingDataKV,testingDataKV,testingGroundDataKV) = extractTrainingData(sc,ratingsFilePath,testDataPath)
+//    println(testingDataKV.mkString(","))
     //map ratings to tuple form
     val trainingDataAsTuples = representAsTuples(sc,trainingDataKV)
     val (usersIndex,itemsIndex) = reIndexUsersAndItems(trainingDataAsTuples.keySet)
-//    println(s"Num users are : ${usersIndex.size} ")
-//    println(s"Num items are : ${itemsIndex.size} ")
     val userItemRatingsArray = prepareRatingsArray(trainingDataAsTuples,usersIndex,itemsIndex)
-//    checkIfArrayHasNoNonZeroRatings(userItemRatingsArray)
-//    for (x <- userItemRatingsArray){
-//      println(x.mkString(","))
-//    }
-//    println(userItemRatingsArray(1).deep.mkString("  "))
-    val predictions = itemBasedCF(sc,testingDataKV,userItemRatingsArray,usersIndex,itemsIndex,testingGroundDataKV)
+    val predictions = itemBasedCFinMapReduce(sc,testingDataKV,userItemRatingsArray,usersIndex,itemsIndex)
+//    println(predictions.mkString("\n"))
+    printAccuracyInfo(predictions,testingGroundDataKV)
     sc.stop()
   }
 
@@ -59,16 +56,29 @@ object saurav_sahu_task2 {
     ratingsArray
   }
 
-  def itemBasedCF(sc: SparkContext, testingDataKV: Array[(Int, Int)], userItemRatingsArray: Array[Array[Double]], usersIndex: mutable.HashMap[Int, Int], itemsIndex: mutable.HashMap[Int, Int],testingGroundDataKV:collection.Map[(Int, Int), Double]) = {
-    val userItemSample = testingDataKV(60)//0 is 0,0
-    val user = userItemSample._1
-    val item = userItemSample._2
-    val itemIndex = itemsIndex(item)
-    val similarItemsMap = findSimilarItemsIndex(itemIndex,userItemRatingsArray).toIndexedSeq.sortWith(_._2 > _._2)
-    val userIndex = usersIndex(user)
-    val itemRating = findRatingFromSimilarItems(userIndex,similarItemsMap,userItemRatingsArray)
-    println("ACtual:" + testingGroundDataKV((user,item)))
-    println("Estimated" + itemRating)
+  def itemBasedCF(testingDataKV: Iterator[(Int, Int)], userItemRatingsArray:Broadcast[Array[Array[Double]]], usersIndex:Broadcast[mutable.HashMap[Int, Int]], itemsIndex:Broadcast[ mutable.HashMap[Int, Int]]) = {
+    val similarItemDictionary = mutable.HashMap[Int,IndexedSeq[(Int,Float)]]()
+    val predictedRatings = mutable.HashMap[(Int,Int),Double]()
+    val defaultRating = 3.0
+    while (testingDataKV.hasNext){
+      val userItemSample = testingDataKV.next()
+      val user = userItemSample._1
+      val item = userItemSample._2
+      if (!itemsIndex.value.contains(item) || !usersIndex.value.contains(user)) {
+        predictedRatings((user,item)) = defaultRating
+      } else {
+        val itemIndex = itemsIndex.value(item)
+        var similarItemsMap = IndexedSeq[(Int,Float)]()
+        if (!similarItemDictionary.contains(itemIndex)){
+          similarItemsMap = findSimilarItemsIndex(itemIndex,userItemRatingsArray.value).toIndexedSeq.sortWith(_._2 > _._2)
+          similarItemDictionary(itemIndex) = similarItemsMap
+        } else similarItemsMap = similarItemDictionary(itemIndex)
+        val userIndex = usersIndex.value(user)
+        val itemRating = findRatingFromSimilarItems(userIndex,similarItemsMap,userItemRatingsArray.value)
+        predictedRatings((user,item)) = itemRating
+      }
+    }
+    predictedRatings.toIterator
   }
 
   //finds the similar items using Pearson Similarity
@@ -81,31 +91,6 @@ object saurav_sahu_task2 {
     similarItemsMap.remove(item)
     similarItemsMap
   }
-
-//  def pearsonCorrelationCoefficient(i: Int, j: Int,userItemRatingsArray: Array[Array[Double]]) = {
-//    val numUsers = userItemRatingsArray(0).length
-//    val (iAvg,jAvg,noCoratingUsers) = findAverageRating(i,j,userItemRatingsArray)
-//    var pcc = 0.toDouble
-//    if (!noCoratingUsers) {
-//      var numerator = 0.toDouble
-//      var denominator1 = 0.toDouble
-//      var denominator2 = 0.toDouble
-//      for (k <- 1 until userItemRatingsArray(0).length) {
-//        //corated items
-//        val rki = userItemRatingsArray(i)(k)
-//        val rkj = userItemRatingsArray(j)(k)
-//        if (rki != 0.toDouble && rkj != 0.toDouble) {
-//          numerator += (rki - iAvg) * (rkj - jAvg)
-//          denominator1 += (rki - iAvg) * (rki - iAvg)
-//          denominator2 += (rkj - jAvg) * (rkj - jAvg)
-//        }
-//      }
-//      if (denominator1 != 0.toDouble && denominator2 != 0.toDouble){
-//        pcc = numerator/(math.sqrt(denominator1)*math.sqrt(denominator2))
-//      }
-//    }
-//    pcc
-//  }
 
   def pearsonCorrelationCoefficient(i: Array[Double], j: Array[Double]) = {
     val numUsers = i.length
@@ -156,7 +141,7 @@ object saurav_sahu_task2 {
     println()
   }
 
-  private  def checkIfArrayHasNoNonZeroRatings(userItemRatingsArray: Array[Array[Double]]) = {
+  private def checkIfArrayHasNoNonZeroRatings(userItemRatingsArray: Array[Array[Double]]) = {
     var flag = true
     for ( i <- 0 until userItemRatingsArray.length ){
       var x = userItemRatingsArray(i)
@@ -172,6 +157,7 @@ object saurav_sahu_task2 {
     val neighbourhoodSize = 50
 //    println(neighbourhoodSize)
     var numerator,denominator =0.0
+    val defaultRating = 3.0
     var count,i = 0
     while (count < neighbourhoodSize && i < similarItemsSeq.length){
       val similarItemWithPCC = similarItemsSeq(i)
@@ -185,6 +171,17 @@ object saurav_sahu_task2 {
       }
       i += 1
     }
-    numerator/denominator
+    if (denominator !=0.0) numerator/denominator else defaultRating
+  }
+
+  def itemBasedCFinMapReduce(sc: SparkContext, testingDataKV: Array[(Int, Int)], userItemRatingsArray: Array[Array[Double]], usersIndex: mutable.HashMap[Int, Int], itemsIndex: mutable.HashMap[Int, Int]) = {
+    val userItemRatingsArrayBV = sc.broadcast(userItemRatingsArray)
+    val usersIndexBV = sc.broadcast(usersIndex)
+    val itemsIndexBV = sc.broadcast(itemsIndex)
+    val temp = sc.parallelize(testingDataKV).mapPartitions(data => itemBasedCF(data,userItemRatingsArrayBV,usersIndexBV,itemsIndexBV)).collectAsMap()
+    userItemRatingsArrayBV.destroy()
+    usersIndexBV.destroy()
+    itemsIndexBV.destroy()
+    temp
   }
 }

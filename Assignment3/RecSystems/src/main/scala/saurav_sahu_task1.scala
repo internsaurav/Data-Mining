@@ -40,7 +40,7 @@ object saurav_sahu_task1 {
     *the	ratings.csv	file	downloaded	from	Movie	Lens	using	the	testing	data.
     */
   def extractTrainingData(sc:SparkContext,ratingsFilePath:String,testDataPath:String)={
-    val testingDataTuples = sc.textFile(testDataPath).map(generateTestindDataKV).collect()
+    val testingDataTuples = sc.textFile(testDataPath).mapPartitionsWithIndex((ind,itr) =>generateTestindDataKV(ind,itr)).collect()
     var testingDataHashSet = new mutable.HashSet[(Int,Int)]()
     for (x <- testingDataTuples){
       testingDataHashSet += x
@@ -55,9 +55,15 @@ object saurav_sahu_task1 {
   /*
   * generates the userId,movieId key value pars from testing dataset
   * */
-  def generateTestindDataKV(line:String):(Int,Int)={
-    val lineSpit = line.split(",")
-    if (lineSpit(0) != "userId") (lineSpit(0).toInt,lineSpit(1).toInt) else (0,0)
+  def generateTestindDataKV(ind:Int,data:Iterator[String]):Iterator[(Int,Int)]={
+    var seq = mutable.HashSet[(Int,Int)]()
+    if (ind == 0) data.next()
+    while (data.hasNext){
+      val line = data.next()
+      val lineSpit = line.split(",")
+      seq += ((lineSpit(0).toInt,lineSpit(1).toInt))
+    }
+    seq.toIterator
   }
 
   /*
