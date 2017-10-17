@@ -90,6 +90,7 @@ object saurav_sahu_task2 {
       if (pearsonCorrCoefft != 0.0) similarItemsMap(i) = pearsonCorrCoefft.toFloat
     }
     similarItemsMap.remove(item)
+//    if (similarItemsMap.size == 0) println("Map is empty")
     similarItemsMap
   }
 
@@ -97,7 +98,7 @@ object saurav_sahu_task2 {
     val numUsers = i.length
     val (iAvg,jAvg,numCoratingUsers) = findAverageRating(i,j)
     var pcc = 0.0
-    val minimumNumberOfCoratingUsers = 50
+    val minimumNumberOfCoratingUsers = 70
     if (numCoratingUsers > minimumNumberOfCoratingUsers) {
       var numerator = 0.0
       var denominator1 = 0.0
