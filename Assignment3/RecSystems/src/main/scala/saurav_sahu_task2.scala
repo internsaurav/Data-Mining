@@ -24,7 +24,7 @@ object saurav_sahu_task2 {
 //      println(x.mkString(","))
 //    }
 //    println(userItemRatingsArray(1).deep.mkString("  "))
-    val predictions = itemBasedCF(sc,testingDataKV,userItemRatingsArray,usersIndex,itemsIndex)
+    val predictions = itemBasedCF(sc,testingDataKV,userItemRatingsArray,usersIndex,itemsIndex,testingGroundDataKV)
     sc.stop()
   }
 
@@ -59,22 +59,16 @@ object saurav_sahu_task2 {
     ratingsArray
   }
 
-  def itemBasedCF(sc: SparkContext, testingDataKV: Array[(Int, Int)], userItemRatingsArray: Array[Array[Double]], usersIndex: mutable.HashMap[Int, Int], itemsIndex: mutable.HashMap[Int, Int]) = {
+  def itemBasedCF(sc: SparkContext, testingDataKV: Array[(Int, Int)], userItemRatingsArray: Array[Array[Double]], usersIndex: mutable.HashMap[Int, Int], itemsIndex: mutable.HashMap[Int, Int],testingGroundDataKV:collection.Map[(Int, Int), Double]) = {
     val userItemSample = testingDataKV(60)//0 is 0,0
     val user = userItemSample._1
     val item = userItemSample._2
     val itemIndex = itemsIndex(item)
-    val similarItemsMap = findSimilarItemsIndex(itemIndex,userItemRatingsArray)
-    println(similarItemsMap.mkString("\n"))
-//    val p = userItemRatingsArray(820)
-//    val q= userItemRatingsArray(3331)
-//    for (i<- 1 until p.length){
-//      if (p(i) != 0.0 && q(i)!=0.0){
-//        println( p(i))
-//        println(q(i))
-//        println("===========")
-//      }
-//    }
+    val similarItemsMap = findSimilarItemsIndex(itemIndex,userItemRatingsArray).toIndexedSeq.sortWith(_._2 > _._2)
+    val userIndex = usersIndex(user)
+    val itemRating = findRatingFromSimilarItems(userIndex,similarItemsMap,userItemRatingsArray)
+    println("ACtual:" + testingGroundDataKV((user,item)))
+    println("Estimated" + itemRating)
   }
 
   //finds the similar items using Pearson Similarity
@@ -84,6 +78,7 @@ object saurav_sahu_task2 {
       val pearsonCorrCoefft = pearsonCorrelationCoefficient(userItemRatingsArray(item),userItemRatingsArray(i))
       if (pearsonCorrCoefft != 0.0) similarItemsMap(i) = pearsonCorrCoefft.toFloat
     }
+    similarItemsMap.remove(item)
     similarItemsMap
   }
 
@@ -171,5 +166,25 @@ object saurav_sahu_task2 {
       if (flag) println("item "+i+" is blank")
       flag = true
     }
+  }
+
+  def findRatingFromSimilarItems(user: Int, similarItemsSeq: IndexedSeq[(Int, Float)],userItemRatingsArray: Array[Array[Double]]) = {
+    val neighbourhoodSize = 50
+//    println(neighbourhoodSize)
+    var numerator,denominator =0.0
+    var count,i = 0
+    while (count < neighbourhoodSize && i < similarItemsSeq.length){
+      val similarItemWithPCC = similarItemsSeq(i)
+      val pcc = similarItemWithPCC._2
+      val item = similarItemWithPCC._1
+      val ratingByUserForItem = userItemRatingsArray(item)(user)
+      if (ratingByUserForItem != 0.0){
+        count += 1
+        numerator += ratingByUserForItem*pcc
+        denominator += math.abs(pcc)
+      }
+      i += 1
+    }
+    numerator/denominator
   }
 }
