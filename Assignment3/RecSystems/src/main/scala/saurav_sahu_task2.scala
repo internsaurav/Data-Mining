@@ -20,7 +20,12 @@ object saurav_sahu_task2 {
     val trainingDataAsTuples = representAsTuples(sc,trainingDataKV)
     val (usersIndex,itemsIndex) = reIndexUsersAndItems(trainingDataAsTuples.keySet)
     val userItemRatingsArray = prepareRatingsArray(trainingDataAsTuples,usersIndex,itemsIndex)
-    val predictions = itemBasedCFinMapReduce(sc,testingDataKV,userItemRatingsArray,usersIndex,itemsIndex)
+    var predictions = itemBasedCFinMapReduce(sc,testingDataKV,userItemRatingsArray,usersIndex,itemsIndex)
+    val (rareItems,ratinglessCombos) = findRareItems(predictions)
+    val similarItemsForRareItems = findSimilarItemsFromAbsoluteGenre(sc,rareItems,moviesDataPath)
+    val ratingsForRareItems = findRatingsForsimilarItemsWithoutNeighbours(sc,ratinglessCombos,similarItemsForRareItems,userItemRatingsArray,usersIndex,itemsIndex)
+    predictions = incorporateNewRatings(predictions,ratinglessCombos,ratingsForRareItems)
+    //    println(rareItems.size)
 //    println(predictions.mkString("\n"))
     printAccuracyInfo(predictions,testingGroundDataKV)
     sc.stop()
@@ -60,13 +65,16 @@ object saurav_sahu_task2 {
   def itemBasedCF(testingDataKV: Iterator[(Int, Int)], userItemRatingsArray:Broadcast[Array[Array[Double]]], usersIndex:Broadcast[mutable.HashMap[Int, Int]], itemsIndex:Broadcast[ mutable.HashMap[Int, Int]]) = {
     val similarItemDictionary = mutable.HashMap[Int,IndexedSeq[(Int,Float)]]()
     val predictedRatings = mutable.HashMap[(Int,Int),Double]()
-    val defaultRating = 3.2
+    val predictFromGenreFlag = 0.0
     while (testingDataKV.hasNext){
       val userItemSample = testingDataKV.next()
       val user = userItemSample._1
       val item = userItemSample._2
-      if (!itemsIndex.value.contains(item) || !usersIndex.value.contains(user)) {
-        predictedRatings((user,item)) = defaultRating
+      if (!usersIndex.value.contains(user)) {
+        predictedRatings((user,item)) = averageOverAllRatings(itemsIndex.value(item),userItemRatingsArray.value)
+      }
+      else if (!itemsIndex.value.contains(item)){
+        predictedRatings((user,item)) = predictFromGenreFlag
       } else {
         val itemIndex = itemsIndex.value(item)
         var similarItemsMap = IndexedSeq[(Int,Float)]()
@@ -75,7 +83,7 @@ object saurav_sahu_task2 {
           similarItemDictionary(itemIndex) = similarItemsMap
         } else similarItemsMap = similarItemDictionary(itemIndex)
         val userIndex = usersIndex.value(user)
-        val itemRating = findRatingFromSimilarItems(userIndex,similarItemsMap,userItemRatingsArray.value)
+        val itemRating = findRatingFromSimilarItems(userIndex,similarItemsMap,userItemRatingsArray.value,false)
         predictedRatings((user,item)) = itemRating
       }
     }
@@ -98,7 +106,7 @@ object saurav_sahu_task2 {
     val numUsers = i.length
     val (iAvg,jAvg,numCoratingUsers) = findAverageRating(i,j)
     var pcc = 0.0
-    val minimumNumberOfCoratingUsers = 70
+    val minimumNumberOfCoratingUsers = 50
     if (numCoratingUsers > minimumNumberOfCoratingUsers) {
       var numerator = 0.0
       var denominator1 = 0.0
@@ -155,11 +163,15 @@ object saurav_sahu_task2 {
     }
   }
 
-  def findRatingFromSimilarItems(user: Int, similarItemsSeq: IndexedSeq[(Int, Float)],userItemRatingsArray: Array[Array[Double]]) = {
+ //flag useDefaultRating means whether to use a default rating or to check use hybrind methods. If hybrid Methods maul, then we use defaut
+  def findRatingFromSimilarItems(user: Int, similarItemsSeq: IndexedSeq[(Int, Float)],userItemRatingsArray: Array[Array[Double]],useDefaultRating:Boolean) = {
     val neighbourhoodSize = 50
-//    println(neighbourhoodSize)
+    //    println(neighbourhoodSize)
     var numerator,denominator =0.0
-    val defaultRating = 3.4
+    val defaultRating = 3.0
+    val predictFromGenreFlag = 0.0
+    var defaultReturnValue = 0.0
+    if (useDefaultRating) defaultReturnValue = defaultRating else defaultReturnValue = predictFromGenreFlag
     var count,i = 0
     while (count < neighbourhoodSize && i < similarItemsSeq.length){
       val similarItemWithPCC = similarItemsSeq(i)
@@ -173,7 +185,7 @@ object saurav_sahu_task2 {
       }
       i += 1
     }
-    if (denominator !=0.0) numerator/denominator else defaultRating
+    if (denominator !=0.0) numerator/denominator else defaultReturnValue
   }
 
   def itemBasedCFinMapReduce(sc: SparkContext, testingDataKV: Array[(Int, Int)], userItemRatingsArray: Array[Array[Double]], usersIndex: mutable.HashMap[Int, Int], itemsIndex: mutable.HashMap[Int, Int]) = {
@@ -186,4 +198,126 @@ object saurav_sahu_task2 {
     itemsIndexBV.destroy()
     temp
   }
+
+  def findRareItems(predictions: collection.Map[(Int, Int), Double]) = {
+    var setOfFriendLessItems = Set[Int]()
+    var ratinglessCombos = Set[(Int,Int)]()
+    for ((k,v)<-predictions){
+      if (v == 0.0) {
+        setOfFriendLessItems += k._2
+        ratinglessCombos += k
+      }
+    }
+    (setOfFriendLessItems,ratinglessCombos)
+  }
+
+  def averageOverAllRatings(item: Int, value: Array[Array[Double]]): Double = {
+    val thisItem = value(item)
+    val defaultRatingForUnseenItems = 3.0
+    var count = 0
+    var sum =0.0
+    for (k <- 1 until thisItem.length){
+      val rki = thisItem(k)
+      if (rki != 0.toDouble){
+        sum += rki
+        count += 1
+      }
+    }
+    if (count !=0)(sum/count) else defaultRatingForUnseenItems
+  }
+
+  def findSimilarItemsFromAbsoluteGenre(sc:SparkContext, itemsWithoutNeighbours: Set[Int], moviesDataPath: String) = {
+    val userGenreKV = sc.textFile(moviesDataPath).mapPartitionsWithIndex(findMovieAbsoluteGenres).collect()
+    //    println(userGenreKV.mkString("\n"))
+    val genreMap = sc.parallelize(userGenreKV).mapPartitions(createGenreMap).reduceByKey((a,b) => a.union(b)).collectAsMap()
+    val userGenreMap = sc.parallelize(userGenreKV).collectAsMap()
+    val userGenreMapBV = sc.broadcast(userGenreMap)
+    val genreMapBV  = sc.broadcast(genreMap)
+    val temp = sc.parallelize(itemsWithoutNeighbours.toSeq).mapPartitions(x => findSimilarAbsoluteGenres(x,userGenreMapBV,genreMapBV)).collectAsMap()
+    userGenreMapBV.destroy()
+    temp
+  }
+
+  //generates movie and genre tuples
+  def findMovieAbsoluteGenres(index:Int, data:Iterator[String])={
+    if (index == 0) data.next()
+    var movieGenreTuples = Set[(Int,String)]()
+    while (data.hasNext){
+      val movie =  data.next()
+      val movieSplit = movie.split(",")
+      movieGenreTuples += ((movieSplit(0).toInt,movieSplit.last))
+    }
+    movieGenreTuples.toIterator
+  }
+
+  //creates a map of genre to movieIds. This is useless
+  def createGenreMap(data:Iterator[(Int,String)])={
+    var genreMovie = mutable.HashMap[String,Set[Int]]()
+    while(data.hasNext){
+      val movieGenre = data.next()
+      if (genreMovie.contains(movieGenre._2)) genreMovie(movieGenre._2) += movieGenre._1 else genreMovie(movieGenre._2) = Set(movieGenre._1)
+    }
+    genreMovie.toIterator
+  }
+
+  //this returns the list of similar Items and their jaccard Similarities
+  def findSimilarAbsoluteGenres(x:Iterator[Int], userGenreMapBV: Broadcast[collection.Map[Int,String]],genreMapBV:Broadcast[scala.collection.Map[String,Set[Int]]]) = {
+    val temp = mutable.HashMap[Int,Set[Int]]()
+    while (x.hasNext){
+      val thisX = x.next()
+      val xGenreSet = userGenreMapBV.value(thisX)
+      val similarSet = genreMapBV.value(xGenreSet) - thisX
+      temp(thisX)=similarSet
+    }
+    temp.toIterator
+  }
+
+  //finds ratings for those items who could not find friends in the initial phase
+  def findRatingsForsimilarItemsWithoutNeighbours(sc: SparkContext, ratinglessCombos: Set[(Int,Int)] ,items: collection.Map[Int, Set[Int]],userItemRatingsArray:Array[Array[Double]], usersIndex:mutable.HashMap[Int, Int], itemsIndex: mutable.HashMap[Int, Int]) = {
+    val userItemRatingsArrayBV = sc.broadcast(userItemRatingsArray)
+    val usersIndexBV = sc.broadcast(usersIndex)
+    val itemsIndexBV = sc.broadcast(itemsIndex)
+    val itemsFriendsMaps = sc.broadcast(items)
+    val ratings =sc.parallelize(ratinglessCombos.toSeq).mapPartitions(data => findSimilarRatingsForItemsWithoutFriendsinNode(data,itemsFriendsMaps,userItemRatingsArrayBV,usersIndexBV,itemsIndexBV)).collectAsMap()
+    usersIndexBV.destroy()
+    itemsIndexBV.destroy()
+    itemsFriendsMaps.destroy()
+    ratings
+  }
+
+  //finds SImilar Ratings for items that could not find any friends in the first phase
+  def findSimilarRatingsForItemsWithoutFriendsinNode(data: Iterator[(Int,Int)],itemsFriendsMap:Broadcast[collection.Map[Int, Set[Int]]], userItemRatingsArrayBV: Broadcast[Array[Array[Double]]], usersIndexBV: Broadcast[mutable.HashMap[Int, Int]], itemsIndexBV: Broadcast[mutable.HashMap[Int, Int]])= {
+    val predictedRatings = mutable.HashMap[(Int,Int),Double]()
+    while (data.hasNext){
+      val userItem = data.next()
+      val userId = usersIndexBV.value(userItem._1)
+      val friends = itemsFriendsMap.value(userItem._2)
+      val indexOffriends = removeRarestAndIndex(friends,itemsIndexBV.value)
+      //      println(indexOffriends)
+      val itemRating = findRatingFromSimilarItems(userId,indexOffriends,userItemRatingsArrayBV.value,true)
+      predictedRatings((userItem._1,userItem._2)) = itemRating
+    }
+    predictedRatings.toIterator
+  }
+
+  //removes those rarest of rare items which are themselves not rated in the training data
+  def removeRarestAndIndex(friends: Set[Int], itemsIndex: mutable.HashMap[Int, Int])={
+    var temp = Set[(Int,Float)]()
+    for (x <- friends){
+      if (itemsIndex.contains(x)){
+        temp += ((itemsIndex(x),1.toFloat))
+      }
+    }
+    temp.toIndexedSeq
+  }
+
+  def incorporateNewRatings(predictions: collection.Map[(Int, Int), Double], ratinglessCombos: Set[(Int, Int)], ratingsForRareItems: collection.Map[(Int, Int), Double]): _root_.scala.collection.Map[(Int, Int), Double] = {
+    var temp = new mutable.HashMap[(Int,Int),Double]() ++ predictions
+    for (x <- ratinglessCombos){
+      val rating = ratingsForRareItems(x)
+      temp(x) = rating
+    }
+    temp
+  }
+
 }
