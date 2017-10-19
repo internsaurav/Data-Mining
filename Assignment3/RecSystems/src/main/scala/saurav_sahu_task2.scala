@@ -22,18 +22,14 @@ object saurav_sahu_task2 {
     val (rareItems,ratinglessCombos) = findRareItems(predictions)
     val similarItemsForRareItems = findSimilarItemsFromAbsoluteGenre(sc,rareItems,moviesDataPath)
     val rarestOfRareItems = findRarestOfRare(similarItemsForRareItems)
-//    val similarItemsForRarestOfRareItems = Map[Int,Set[(Int,Float)]]()
     val similarItemsForRarestOfRareItems = findSimilarItemsFromGenre(sc,rarestOfRareItems,moviesDataPath)
-//    println(similarItemsForRarestOfRareItems.mkString("\n"))
     val ratingsForRareItems = findRatingsForRarestOfRare(sc,ratinglessCombos,similarItemsForRareItems,similarItemsForRarestOfRareItems,userItemRatingsArray,usersIndex,itemsIndex)
     predictions = incorporateNewRatings(predictions,ratinglessCombos,ratingsForRareItems)
     var counter = 0
     for ((k,v)<-predictions){
-      if (v == 3.0) counter += 1
+      if (v == 3.5) counter += 1
     }
     println(s"number of ratings that used default even after using content based filtering are $counter")
-//////    //    println(rareItems.size)
-////////    println(predictions.mkString("\n"))
     printAccuracyInfo(predictions,testingGroundDataKV)
     sc.stop()
   }
@@ -114,7 +110,7 @@ object saurav_sahu_task2 {
     val numUsers = i.length
     val (iAvg,jAvg,numCoratingUsers) = findAverageRating(i,j)
     var pcc = 0.0
-    val minimumNumberOfCoratingUsers = 50
+    val minimumNumberOfCoratingUsers = 70
     if (numCoratingUsers > minimumNumberOfCoratingUsers) {
       var numerator = 0.0
       var denominator1 = 0.0
@@ -258,9 +254,6 @@ object saurav_sahu_task2 {
   def findSimilarItemsFromGenre(sc: SparkContext, rareItems: Set[Int], moviesDataPath: String) = {
     val itemGenreKV = sc.textFile(moviesDataPath).mapPartitionsWithIndex(findMovieGenres).collect()
     val reindexedUserGenreKV = reindexCategories(itemGenreKV)
-//    for ((item,genreSet) <- itemGenreKV){
-//      println(s"$item | $genreSet | ${reindexedUserGenreKV(item)}")
-//    }
     val reindexedUserGenreBV = sc.broadcast(reindexedUserGenreKV)
     val x = sc.parallelize(rareItems.toSeq).mapPartitions(x=>findSimilarItemsWithJaccard(x,reindexedUserGenreBV)).collectAsMap()
     reindexedUserGenreBV.destroy()
@@ -269,13 +262,14 @@ object saurav_sahu_task2 {
 
   def findSimilarItemsWithJaccard(x: Iterator[Int], reindexedUserGenreBV: Broadcast[mutable.HashMap[Int, Set[Int]]]) = {
     val itemNeighboursMap = new mutable.HashMap[Int,Set[(Int,Float)]]()
+    val minimumJaccardSimilarity = 0.4.toFloat
     while (x.hasNext){
       val rareItem =   x.next()
       val rareItemGenreSet = reindexedUserGenreBV.value(rareItem)
       var jaccSimSet = Set[(Int,Float)]()
       for ((item, genreSet) <- reindexedUserGenreBV.value){
         val jaccardSim = jaccardSimilarity(rareItemGenreSet,genreSet)
-        if (jaccardSim >= 0.5.toFloat) jaccSimSet += ((item,jaccardSim))
+        if (jaccardSim >= minimumJaccardSimilarity) jaccSimSet += ((item,jaccardSim))
       }
       itemNeighboursMap(rareItem) = jaccSimSet
     }
@@ -373,7 +367,6 @@ object saurav_sahu_task2 {
   def removeRarestFromRare(items: collection.Map[Int, Set[Int]], rarestItems: collection.Map[Int, Set[(Int, Float)]]): _root_.scala.collection.Map[Int, _root_.scala.Predef.Set[Int]] = {
     var temp = items
     for (x <- rarestItems.keySet){
-//      println(items(x))
       temp -= x
     }
     temp
@@ -428,8 +421,9 @@ object saurav_sahu_task2 {
 
   def findRarestOfRare(similarItemsForRareItems: collection.Map[Int, Set[Int]]) = {
     var rarestOfRare = Set[Int]()
+    val minimumNeighbourhoodSize = 50
     for ((k,v) <- similarItemsForRareItems){
-      if (v.size == 0) rarestOfRare += k
+      if (v.size < minimumNeighbourhoodSize) rarestOfRare += k
     }
     rarestOfRare
   }
