@@ -24,7 +24,7 @@ object saurav_sahu_task2 {
     val rarestOfRareItems = findRarestOfRare(similarItemsForRareItems)
 //    val similarItemsForRarestOfRareItems = Map[Int,Set[(Int,Float)]]()
     val similarItemsForRarestOfRareItems = findSimilarItemsFromGenre(sc,rarestOfRareItems,moviesDataPath)
-    println(similarItemsForRarestOfRareItems.mkString("\n"))
+//    println(similarItemsForRarestOfRareItems.mkString("\n"))
     val ratingsForRareItems = findRatingsForRarestOfRare(sc,ratinglessCombos,similarItemsForRareItems,similarItemsForRarestOfRareItems,userItemRatingsArray,usersIndex,itemsIndex)
     predictions = incorporateNewRatings(predictions,ratinglessCombos,ratingsForRareItems)
     var counter = 0
@@ -171,15 +171,15 @@ object saurav_sahu_task2 {
     }
   }
 
- //flag useDefaultRating means whether to use a default rating or to check use hybrind methods. If hybrid Methods maul, then we use defaut
-  def findRatingFromSimilarItems(user: Int, similarItemsSeq: IndexedSeq[(Int, Float)],userItemRatingsArray: Array[Array[Double]],useDefaultRating:Boolean) = {
+  //flag useDefaultRating means whether to use a default rating or to check use hybrind methods. If hybrid Methods maul, then we use defaut
+  def findRatingFromSimilarItems(user: Int, similarItemsSeq: IndexedSeq[(Int, Float)],userItemRatingsArray: Array[Array[Double]],noFurtherBoostingAvailable:Boolean) = {
     val neighbourhoodSize = 50
     //    println(neighbourhoodSize)
     var numerator,denominator =0.0
-    val defaultRating = 3.0
+    val coldStartProblemFlag = 0.0
     val predictFromGenreFlag = 0.0
     var defaultReturnValue = 0.0
-    if (useDefaultRating) defaultReturnValue = defaultRating else defaultReturnValue = predictFromGenreFlag
+    if (noFurtherBoostingAvailable) defaultReturnValue = coldStartProblemFlag else defaultReturnValue = predictFromGenreFlag
     var count,i = 0
     while (count < neighbourhoodSize && i < similarItemsSeq.length){
       val similarItemWithPCC = similarItemsSeq(i)
@@ -193,12 +193,14 @@ object saurav_sahu_task2 {
       }
       i += 1
     }
-    if (denominator !=0.0) numerator/denominator else {
-//      if (useDefaultRating){
-//        println(s"$user ===> ${similarItemsSeq.mkString(",")}")
-//      }
-      defaultReturnValue
+    if (denominator !=0.0) numerator/denominator else defaultReturnValue
+  }
+
+  def printUserCol(user: Int, similarItemsSeq: IndexedSeq[(Int, Float)], userItemRatingsArray: Array[Array[Double]]) = {
+    for ((x,y) <- similarItemsSeq){
+      print(userItemRatingsArray(x)(user)+",")
     }
+    println()
   }
 
   def itemBasedCFinMapReduce(sc: SparkContext, testingDataKV: Array[(Int, Int)], userItemRatingsArray: Array[Array[Double]], usersIndex: mutable.HashMap[Int, Int], itemsIndex: mutable.HashMap[Int, Int]) = {
@@ -380,11 +382,16 @@ object saurav_sahu_task2 {
   //finds SImilar Ratings for items that could not find any friends in the first phase
   def findSimilarRatingsForItemsWithoutFriendsinNode(data: Iterator[(Int,Int)], rareItemsNeighboursBV:Broadcast[collection.Map[Int, Set[Int]]], rarestItemsNeighboursBV: Broadcast[collection.Map[Int,Set[(Int,Float)]]], userItemRatingsArrayBV: Broadcast[Array[Array[Double]]], usersIndexBV: Broadcast[mutable.HashMap[Int, Int]], itemsIndexBV: Broadcast[mutable.HashMap[Int, Int]])= {
     val predictedRatings = mutable.HashMap[(Int,Int),Double]()
+    val coldStartProblemFlag = 0.0
+    val defaultRating = 3.0
     while (data.hasNext){
       val userItem = data.next()
       val userId = usersIndexBV.value(userItem._1)
       val indexOfNeighbours = findIndexOfNeighbours(userItem._2,rareItemsNeighboursBV.value,rarestItemsNeighboursBV.value,itemsIndexBV.value)
-      val itemRating = findRatingFromSimilarItems(userId,indexOfNeighbours,userItemRatingsArrayBV.value,true)
+      var itemRating = findRatingFromSimilarItems(userId,indexOfNeighbours,userItemRatingsArrayBV.value,true)
+      if (itemRating == coldStartProblemFlag){
+        if (itemsIndexBV.value.contains(userItem._2))itemRating = averageOverAllRatings(itemsIndexBV.value(userItem._2),userItemRatingsArrayBV.value) else itemRating = defaultRating
+      }
       predictedRatings((userItem._1,userItem._2)) = itemRating
     }
     predictedRatings.toIterator
