@@ -15,18 +15,25 @@ object saurav_sahu_task2 {
     val moviesDataPath = args(2)
     val sc = makeSparkContext()
     val (trainingDataKV,testingDataKV,testingGroundDataKV) = extractTrainingData(sc,ratingsFilePath,testDataPath)
-//    println(testingDataKV.mkString(","))
-    //map ratings to tuple form
     val trainingDataAsTuples = representAsTuples(sc,trainingDataKV)
     val (usersIndex,itemsIndex) = reIndexUsersAndItems(trainingDataAsTuples.keySet)
     val userItemRatingsArray = prepareRatingsArray(trainingDataAsTuples,usersIndex,itemsIndex)
     var predictions = itemBasedCFinMapReduce(sc,testingDataKV,userItemRatingsArray,usersIndex,itemsIndex)
     val (rareItems,ratinglessCombos) = findRareItems(predictions)
     val similarItemsForRareItems = findSimilarItemsFromAbsoluteGenre(sc,rareItems,moviesDataPath)
-    val ratingsForRareItems = findRatingsForsimilarItemsWithoutNeighbours(sc,ratinglessCombos,similarItemsForRareItems,userItemRatingsArray,usersIndex,itemsIndex)
+    val rarestOfRareItems = findRarestOfRare(similarItemsForRareItems)
+//    val similarItemsForRarestOfRareItems = Map[Int,Set[(Int,Float)]]()
+    val similarItemsForRarestOfRareItems = findSimilarItemsFromGenre(sc,rarestOfRareItems,moviesDataPath)
+    println(similarItemsForRarestOfRareItems.mkString("\n"))
+    val ratingsForRareItems = findRatingsForRarestOfRare(sc,ratinglessCombos,similarItemsForRareItems,similarItemsForRarestOfRareItems,userItemRatingsArray,usersIndex,itemsIndex)
     predictions = incorporateNewRatings(predictions,ratinglessCombos,ratingsForRareItems)
-    //    println(rareItems.size)
-//    println(predictions.mkString("\n"))
+    var counter = 0
+    for ((k,v)<-predictions){
+      if (v == 3.0) counter += 1
+    }
+    println(s"number of ratings that used default even after using content based filtering are $counter")
+//////    //    println(rareItems.size)
+////////    println(predictions.mkString("\n"))
     printAccuracyInfo(predictions,testingGroundDataKV)
     sc.stop()
   }
@@ -71,6 +78,7 @@ object saurav_sahu_task2 {
       val user = userItemSample._1
       val item = userItemSample._2
       if (!usersIndex.value.contains(user)) {
+        println("Cold Start")
         predictedRatings((user,item)) = averageOverAllRatings(itemsIndex.value(item),userItemRatingsArray.value)
       }
       else if (!itemsIndex.value.contains(item)){
@@ -185,7 +193,12 @@ object saurav_sahu_task2 {
       }
       i += 1
     }
-    if (denominator !=0.0) numerator/denominator else defaultReturnValue
+    if (denominator !=0.0) numerator/denominator else {
+//      if (useDefaultRating){
+//        println(s"$user ===> ${similarItemsSeq.mkString(",")}")
+//      }
+      defaultReturnValue
+    }
   }
 
   def itemBasedCFinMapReduce(sc: SparkContext, testingDataKV: Array[(Int, Int)], userItemRatingsArray: Array[Array[Double]], usersIndex: mutable.HashMap[Int, Int], itemsIndex: mutable.HashMap[Int, Int]) = {
@@ -235,7 +248,61 @@ object saurav_sahu_task2 {
     val genreMapBV  = sc.broadcast(genreMap)
     val temp = sc.parallelize(itemsWithoutNeighbours.toSeq).mapPartitions(x => findSimilarAbsoluteGenres(x,userGenreMapBV,genreMapBV)).collectAsMap()
     userGenreMapBV.destroy()
+    genreMapBV.destroy()
     temp
+  }
+
+  //this returns the list of similar Items and their jaccard Similarities
+  def findSimilarItemsFromGenre(sc: SparkContext, rareItems: Set[Int], moviesDataPath: String) = {
+    val itemGenreKV = sc.textFile(moviesDataPath).mapPartitionsWithIndex(findMovieGenres).collect()
+    val reindexedUserGenreKV = reindexCategories(itemGenreKV)
+//    for ((item,genreSet) <- itemGenreKV){
+//      println(s"$item | $genreSet | ${reindexedUserGenreKV(item)}")
+//    }
+    val reindexedUserGenreBV = sc.broadcast(reindexedUserGenreKV)
+    val x = sc.parallelize(rareItems.toSeq).mapPartitions(x=>findSimilarItemsWithJaccard(x,reindexedUserGenreBV)).collectAsMap()
+    reindexedUserGenreBV.destroy()
+    x
+  }
+
+  def findSimilarItemsWithJaccard(x: Iterator[Int], reindexedUserGenreBV: Broadcast[mutable.HashMap[Int, Set[Int]]]) = {
+    val itemNeighboursMap = new mutable.HashMap[Int,Set[(Int,Float)]]()
+    while (x.hasNext){
+      val rareItem =   x.next()
+      val rareItemGenreSet = reindexedUserGenreBV.value(rareItem)
+      var jaccSimSet = Set[(Int,Float)]()
+      for ((item, genreSet) <- reindexedUserGenreBV.value){
+        val jaccardSim = jaccardSimilarity(rareItemGenreSet,genreSet)
+        if (jaccardSim >= 0.5.toFloat) jaccSimSet += ((item,jaccardSim))
+      }
+      itemNeighboursMap(rareItem) = jaccSimSet
+    }
+    itemNeighboursMap.toIterator
+  }
+
+  //jaccard Similarity
+  def jaccardSimilarity(x: Set[Int], y: Set[Int]): Float = {
+    val xIntersectY = x.intersect(y).size.toFloat
+    val xUnionY =  x.union(y).size.toFloat
+    xIntersectY/xUnionY
+  }
+
+  def reindexCategories(userGenreKV: Array[(Int, Set[String])]) = {
+    var genreIndexMap = mutable.HashMap[String,Int]()
+    var reindexedUserGenreKV = mutable.HashMap[Int,Set[Int]]()
+    var index = 0
+    for ((item,genreSet) <- userGenreKV){
+      for (genre <- genreSet){
+        if (!genreIndexMap.contains(genre)){
+          genreIndexMap(genre) = index
+          index += 1
+        }
+      }
+    }
+    for ((item,genreSet) <- userGenreKV){
+      reindexedUserGenreKV(item) = genreSet.map(x => genreIndexMap(x))
+    }
+    reindexedUserGenreKV
   }
 
   //generates movie and genre tuples
@@ -250,6 +317,18 @@ object saurav_sahu_task2 {
     movieGenreTuples.toIterator
   }
 
+  //generates movie and genre tuples. genre is considered as a set of genres
+  def findMovieGenres(index:Int,data:Iterator[String])={
+    if (index == 0) data.next()
+    var movieGenreTuples = Set[(Int,Set[String])]()
+    while (data.hasNext){
+      val movie =  data.next()
+      val movieSplit = movie.split(",")
+      movieGenreTuples += ((movieSplit(0).toInt,movieSplit.last.split('|').toSet))
+    }
+    movieGenreTuples.toIterator
+  }
+
   //creates a map of genre to movieIds. This is useless
   def createGenreMap(data:Iterator[(Int,String)])={
     var genreMovie = mutable.HashMap[String,Set[Int]]()
@@ -260,7 +339,7 @@ object saurav_sahu_task2 {
     genreMovie.toIterator
   }
 
-  //this returns the list of similar Items and their jaccard Similarities
+  //this returns the list of similar Items and their absolute genres
   def findSimilarAbsoluteGenres(x:Iterator[Int], userGenreMapBV: Broadcast[collection.Map[Int,String]],genreMapBV:Broadcast[scala.collection.Map[String,Set[Int]]]) = {
     val temp = mutable.HashMap[Int,Set[Int]]()
     while (x.hasNext){
@@ -273,39 +352,59 @@ object saurav_sahu_task2 {
   }
 
   //finds ratings for those items who could not find friends in the initial phase
-  def findRatingsForsimilarItemsWithoutNeighbours(sc: SparkContext, ratinglessCombos: Set[(Int,Int)] ,items: collection.Map[Int, Set[Int]],userItemRatingsArray:Array[Array[Double]], usersIndex:mutable.HashMap[Int, Int], itemsIndex: mutable.HashMap[Int, Int]) = {
+  def findRatingsForRarestOfRare(sc: SparkContext, ratinglessCombos: Set[(Int,Int)], items: collection.Map[Int, Set[Int]], rarestItems:collection.Map[Int,Set[(Int,Float)]], userItemRatingsArray:Array[Array[Double]], usersIndex:mutable.HashMap[Int, Int], itemsIndex: mutable.HashMap[Int, Int]) = {
     val userItemRatingsArrayBV = sc.broadcast(userItemRatingsArray)
     val usersIndexBV = sc.broadcast(usersIndex)
     val itemsIndexBV = sc.broadcast(itemsIndex)
-    val itemsFriendsMaps = sc.broadcast(items)
-    val ratings =sc.parallelize(ratinglessCombos.toSeq).mapPartitions(data => findSimilarRatingsForItemsWithoutFriendsinNode(data,itemsFriendsMaps,userItemRatingsArrayBV,usersIndexBV,itemsIndexBV)).collectAsMap()
+    val rareTtems = removeRarestFromRare(items,rarestItems)
+    val rareItemsNeighboursBV = sc.broadcast(rareTtems)
+    val rarestItemsNeighboursBV = sc.broadcast(rarestItems)
+    val ratingsForRareItems =sc.parallelize(ratinglessCombos.toSeq).mapPartitions(data => findSimilarRatingsForItemsWithoutFriendsinNode(data,rareItemsNeighboursBV,rarestItemsNeighboursBV,userItemRatingsArrayBV,usersIndexBV,itemsIndexBV)).collectAsMap()
     usersIndexBV.destroy()
     itemsIndexBV.destroy()
-    itemsFriendsMaps.destroy()
-    ratings
+    rareItemsNeighboursBV.destroy()
+    rarestItemsNeighboursBV.destroy()
+    ratingsForRareItems
+  }
+
+  //removes the rarest of rare items from rare items
+  def removeRarestFromRare(items: collection.Map[Int, Set[Int]], rarestItems: collection.Map[Int, Set[(Int, Float)]]): _root_.scala.collection.Map[Int, _root_.scala.Predef.Set[Int]] = {
+    var temp = items
+    for (x <- rarestItems.keySet){
+//      println(items(x))
+      temp -= x
+    }
+    temp
   }
 
   //finds SImilar Ratings for items that could not find any friends in the first phase
-  def findSimilarRatingsForItemsWithoutFriendsinNode(data: Iterator[(Int,Int)],itemsFriendsMap:Broadcast[collection.Map[Int, Set[Int]]], userItemRatingsArrayBV: Broadcast[Array[Array[Double]]], usersIndexBV: Broadcast[mutable.HashMap[Int, Int]], itemsIndexBV: Broadcast[mutable.HashMap[Int, Int]])= {
+  def findSimilarRatingsForItemsWithoutFriendsinNode(data: Iterator[(Int,Int)], rareItemsNeighboursBV:Broadcast[collection.Map[Int, Set[Int]]], rarestItemsNeighboursBV: Broadcast[collection.Map[Int,Set[(Int,Float)]]], userItemRatingsArrayBV: Broadcast[Array[Array[Double]]], usersIndexBV: Broadcast[mutable.HashMap[Int, Int]], itemsIndexBV: Broadcast[mutable.HashMap[Int, Int]])= {
     val predictedRatings = mutable.HashMap[(Int,Int),Double]()
     while (data.hasNext){
       val userItem = data.next()
       val userId = usersIndexBV.value(userItem._1)
-      val friends = itemsFriendsMap.value(userItem._2)
-      val indexOffriends = removeRarestAndIndex(friends,itemsIndexBV.value)
-      //      println(indexOffriends)
-      val itemRating = findRatingFromSimilarItems(userId,indexOffriends,userItemRatingsArrayBV.value,true)
+      val indexOfNeighbours = findIndexOfNeighbours(userItem._2,rareItemsNeighboursBV.value,rarestItemsNeighboursBV.value,itemsIndexBV.value)
+      val itemRating = findRatingFromSimilarItems(userId,indexOfNeighbours,userItemRatingsArrayBV.value,true)
       predictedRatings((userItem._1,userItem._2)) = itemRating
     }
     predictedRatings.toIterator
   }
 
+  def findIndexOfNeighbours(item:Int,rareItemsNeighboursBV: collection.Map[Int, Set[Int]], rarestItemsNeighboursBV: collection.Map[Int, Set[(Int, Float)]], itemsIndexBV: mutable.HashMap[Int, Int]) = {
+    var indexOfNeighbours = IndexedSeq[(Int,Float)]()
+    if (rareItemsNeighboursBV.contains(item)){
+      val neighbours = rareItemsNeighboursBV(item).map(x => (x,1.toFloat))
+      indexOfNeighbours = removeRarestAndFindIndex(neighbours,itemsIndexBV)
+    } else indexOfNeighbours = removeRarestAndFindIndex(rarestItemsNeighboursBV(item),itemsIndexBV).sortWith(_._2 > _._2)
+    indexOfNeighbours
+  }
+
   //removes those rarest of rare items which are themselves not rated in the training data
-  def removeRarestAndIndex(friends: Set[Int], itemsIndex: mutable.HashMap[Int, Int])={
+  def removeRarestAndFindIndex(friends: Set[(Int,Float)], itemsIndex: mutable.HashMap[Int, Int])={
     var temp = Set[(Int,Float)]()
     for (x <- friends){
-      if (itemsIndex.contains(x)){
-        temp += ((itemsIndex(x),1.toFloat))
+      if (itemsIndex.contains(x._1)){
+        temp += ((itemsIndex(x._1),x._2))
       }
     }
     temp.toIndexedSeq
@@ -320,4 +419,11 @@ object saurav_sahu_task2 {
     temp
   }
 
+  def findRarestOfRare(similarItemsForRareItems: collection.Map[Int, Set[Int]]) = {
+    var rarestOfRare = Set[Int]()
+    for ((k,v) <- similarItemsForRareItems){
+      if (v.size == 0) rarestOfRare += k
+    }
+    rarestOfRare
+  }
 }
