@@ -15,6 +15,7 @@ object saurav_sahu_task1 {
 
   def main(args: Array[String]):Unit={
 
+    val startTime = System.currentTimeMillis()
     val ratingsFilePath = args(0)
     val testDataPath = args(1)
     val sc = makeSparkContext()
@@ -23,8 +24,8 @@ object saurav_sahu_task1 {
     val model = buildRecModel(ratingsRDD)
     val testingDataRDD = sc.parallelize(testingDataKV)
     val predictions = predictFromModesl(model,testingDataRDD)
-    printAccuracyInfo(predictions,testingGroundDataKV)
-    writeSortedOutput(predictions)
+    handleOutput("saurav_sahu_result_task1.txt",predictions,testingGroundDataKV)
+    println(s"The total execution time taken is ${(System.currentTimeMillis() - startTime)/(1000)} sec.")
     sc.stop()
   }
 
@@ -110,9 +111,8 @@ object saurav_sahu_task1 {
   }
 
 
-  def printAccuracyInfo(predictions: collection.Map[(Int, Int), Double], testingGroundDataKV: collection.Map[(Int, Int), Double]) = {
-//    var accuracyInfo = mutable.HashMap[String,Int](">=0 and <1"->0, ">=1 and <2"->0, ">=2 and <3" ->0, ">=3 and <4" ->0, ">=4" -> 0)
-    var accuracyInfo = mutable.HashMap[Int,Int](0->0, 1->0, 2 ->0, 3 ->0, 4 -> 0)
+  def printAccuracyInfo(predictions: collection.Map[(Int, Int), Double],testingGroundDataKV: collection.Map[(Int, Int), Double]) = {
+    val accuracyInfo = mutable.HashMap[Int,Int](0->0, 1->0, 2 ->0, 3 ->0, 4 -> 0)
     var sumOfSquaresOfErrors = 0.0
     val defaultRating = 3.0
     val numElements = testingGroundDataKV.size
@@ -130,19 +130,44 @@ object saurav_sahu_task1 {
     println("RMSE = " + math.sqrt(sumOfSquaresOfErrors/numElements))
   }
 
-  def writeSortedOutput(predictions: collection.Map[(Int, Int), Double]) = {
+  def handleOutput(filename:String,predictions: collection.Map[(Int, Int), Double],testingGroundDataKV: collection.Map[(Int, Int), Double]) = {
 
-    var outputFileName = "saurav_sahu_result_task1.txt"
-    //    println(frequentItemSets)
+    val outputFileName = filename
     val file = new File(outputFileName)
     val pw = new PrintWriter(file)
-    var sortedKeySet = mutable.SortedSet[(Int,Int)]()
-    for ((k,v) <- predictions){
-      sortedKeySet += k
+    val sortedKeySet = mutable.SortedSet[((Int,Int),Double)]()
+    val accuracyInfo = mutable.HashMap[Int,Int](0->0, 1->0, 2 ->0, 3 ->0, 4 -> 0)
+    val numElements = testingGroundDataKV.size
+    var sumOfSquaresOfErrors = 0.0
+    val defaultRating = 3.0
+
+    for ((k,v) <- testingGroundDataKV) {
+      var err = 0.0
+      var rating = 0.0
+      if (predictions.contains(k)) {
+        predictions(k) match{
+          case x if x<1.0 => rating = 1.0
+          case x if x>5.0 => rating = 5.0
+          case _ => rating = predictions(k)
+        }
+      } else rating = defaultRating
+      err = math.abs(rating-v)
+      if (err >= 4) accuracyInfo(4) += 1 else accuracyInfo(math.floor(err).toInt) +=1
+      sumOfSquaresOfErrors += err*err
+      sortedKeySet += ((k,rating))
     }
-    for(x <- sortedKeySet){
-      pw.write( x._1 + "," + x._2 + ","+ predictions(x) + "\n")
+    pw.write("UserId,MovieId,Pred_rating\n")
+    for (x <- sortedKeySet) {
+      pw.write(x._1._1 + "," + x._1._2 + "," + x._2 + "\n")
     }
     pw.close()
+
+    println(">=0 and <1: " + accuracyInfo(0))
+    println(">=1 and <2: " + accuracyInfo(1))
+    println(">=2 and <3: " + accuracyInfo(2))
+    println(">=3 and <4: " + accuracyInfo(3))
+    println(">=4: " + accuracyInfo(4))
+    println("RMSE = " + math.sqrt(sumOfSquaresOfErrors/numElements))
+
   }
 }
