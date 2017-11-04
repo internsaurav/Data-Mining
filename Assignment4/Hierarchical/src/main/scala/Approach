@@ -1,0 +1,3 @@
+I need a data structure to represent the Flowers--->List or Tuple, Sets are not ordered and no duplicates
+--List it is as Tuple converts all elements to type Any---or does it not?
+
