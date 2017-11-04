@@ -1,9 +1,12 @@
-.idea
+*.idea
 Assignment1/project/
 Assignment1/target/
 Assignment1/src/test/
-.zip
-.jar
+*.zip
+*.jar
 Assignment2/SON/project/
 Assignment2/SON/target/
 Assignment2/SON/test/
+*.class
+*.cache
+*.xml
