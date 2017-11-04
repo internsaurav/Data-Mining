@@ -11,3 +11,4 @@ Assignment2/SON/test/
 *.cache
 *.xml
 target/
+project/
