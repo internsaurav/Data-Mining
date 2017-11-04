@@ -10,3 +10,4 @@ Assignment2/SON/test/
 *.class
 *.cache
 *.xml
+target/
