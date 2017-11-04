@@ -3,13 +3,14 @@ package recSystems
 import org.apache.spark.SparkContext
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.mllib.recommendation.Rating
-import recSystems.saurav_sahu_task1.{extractTrainingData, makeSparkContext,printAccuracyInfo,writeSortedOutput}
+import recSystems.saurav_sahu_task1.{extractTrainingData, makeSparkContext,printAccuracyInfo,handleOutput}
 
 import scala.collection.mutable
 
 object saurav_sahu_task2 {
 
   def main(args: Array[String])={
+    val startTime = System.currentTimeMillis()
     val ratingsFilePath = args(0)
     val testDataPath = args(1)
     val moviesDataPath = args(2)
@@ -25,12 +26,8 @@ object saurav_sahu_task2 {
     val similarItemsForRarestOfRareItems = findSimilarItemsFromGenre(sc,rarestOfRareItems,moviesDataPath)
     val ratingsForRareItems = findRatingsForRarestOfRare(sc,ratinglessCombos,similarItemsForRareItems,similarItemsForRarestOfRareItems,userItemRatingsArray,usersIndex,itemsIndex)
     predictions = incorporateNewRatings(predictions,ratinglessCombos,ratingsForRareItems)
-    var counter = 0
-    for ((k,v)<-predictions){
-      if (v == 3.5) counter += 1
-    }
-    println(s"number of ratings that used default even after using content based filtering are $counter")
-    printAccuracyInfo(predictions,testingGroundDataKV)
+    handleOutput("saurav_sahu_result_task2.txt",predictions,testingGroundDataKV)
+    println(s"The total execution time taken is ${(System.currentTimeMillis() - startTime)/(1000)} sec.")
     sc.stop()
   }
 
