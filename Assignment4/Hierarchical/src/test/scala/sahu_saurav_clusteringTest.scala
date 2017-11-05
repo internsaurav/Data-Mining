@@ -2,7 +2,9 @@
 import java.lang.AssertionError
 
 import org.scalatest.FunSuite
-import sahu_saurav_clustering.{processDataForClustering,findCentroidOfCluster,euclideanDistance}
+import sahu_saurav_clustering.{euclideanDistance, findCentroidOfCluster, makePriorityQueue, processDataForClustering,update,removeEntriesForMergedClusters}
+
+import scala.collection.mutable
 
 class sahu_saurav_clusteringTest extends FunSuite {
 
@@ -47,6 +49,10 @@ class sahu_saurav_clusteringTest extends FunSuite {
     assert(centroid.deep == Array(0.25f,0.5f,0.75f,1.0f).deep)
 
   }
+  //9===>4.9,3.1,1.5,0.1,1.0
+  //34===>4.9,3.1,1.5,0.1,1.0
+  //37===>4.9,3.1,1.5,0.1,1.0
+
 
   //test for euclideanDistance
   test("test for euclideanDistance"){
@@ -54,13 +60,96 @@ class sahu_saurav_clusteringTest extends FunSuite {
     var pointB = Array(0f,0f,0f,0f)
     assert(euclideanDistance(pointA,pointB) == 0f)
 
+    assert(euclideanDistance(Array(5.8f,2.7f,5.1f,1.9f),Array(5.8f,2.7f,5.1f,1.9f)) == 0f)
+
     pointA = Array(0f,0f,0f,0f)
     pointB = Array(1f,1f,1f,1f)
     assert(euclideanDistance(pointA,pointB) == 2f)
 
     assert(euclideanDistance(pointA,pointB) == euclideanDistance(pointB,pointA))
 
+    pointA = Array(0f,0f,0f,0f)
+    pointB = Array(0f,1f,1f,1f)
+    assert(euclideanDistance(pointA,pointB) == Math.sqrt(3).toFloat)
 
+    pointA = Array(0f,1f,0f,0f)
+    pointB = Array(0f,1f,1f,1f)
+    assert(euclideanDistance(pointA,pointB) == Math.sqrt(2).toFloat)
+
+    pointA = Array(-1f,1f,0f,25f)
+    pointB = Array(0f,1f,-15.2f,1f)
+    assert(euclideanDistance(pointA,pointB) == Math.sqrt(808.04).toFloat)
+
+    pointA = Array(-100f,100f,45000f,0.00008f)
+    pointB = Array(10f,1f,-15.2f,1f)
+    val dis = euclideanDistance(pointA,pointB)
+    val comp = Math.sqrt(2026390130).toFloat
+    println(dis)
+    println(comp)
+    assert(dis == comp)
+  }
+
+
+  test("priority queue"){
+    val clustersPriorityQueue = new mutable.PriorityQueue[(Int,Int,Float)]()(Ordering.by(-_._3))
+    clustersPriorityQueue.enqueue((1,1,0f))
+    clustersPriorityQueue.enqueue((1,1,5f))
+    clustersPriorityQueue.enqueue((1,1,3f))
+    clustersPriorityQueue.enqueue((1,1,18f))
+    clustersPriorityQueue.enqueue((1,1,-1f))
+
+    while(clustersPriorityQueue.nonEmpty){
+      println(clustersPriorityQueue.dequeue())
+    }
+
+  }
+
+  test("clusters"){
+    for((k,v)<- clusters){
+      print(k+"===>")
+      println(v.deep.mkString(","))
+    }
+  }
+
+  test("makePQ"){
+    val priorityQueueProxy = makePriorityQueue(clusters)
+    while (priorityQueueProxy.nonEmpty){
+      println(priorityQueueProxy.dequeue())
+    }
+  }
+
+  test("byRefOrByVal"){
+    var x= Array(1,2,3,4)
+    println(x.deep.mkString(","))
+    process(x)
+    println(x.deep.mkString(","))
+
+    var y = mutable.HashMap(1->1,2->1)
+    println(y.mkString(","))
+    process2(y)
+    println(y.mkString(","))
+  }
+
+    def process(x: Array[Int])={
+      x(0) = 1000
+    }
+
+  def process2(y: mutable.HashMap[Int, Int])={
+    y(1) = 1000
+    y -= 2
+  }
+
+  test("mergeClusters"){
+    val x = Array(0f,1f,2f,3f,4f)
+    val z = Array(1f,2f,3f,4f,5f)
+    update(x,z)
+    assert(x.deep == Array(1f,3f,5f,7f,9f).deep)
+
+    val priorityQueueProxy = makePriorityQueue(clusters)
+    var temp = priorityQueueProxy.clone()
+    println(temp.mkString(","))
+    temp = removeEntriesForMergedClusters(temp,50,100)
+    println(temp.mkString(","))
   }
 
 }
