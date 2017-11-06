@@ -2,8 +2,7 @@
 import java.lang.AssertionError
 
 import org.scalatest.FunSuite
-import sahu_saurav_clustering.{euclideanDistance, findCentroidOfCluster, makePriorityQueue, processDataForClustering,update,removeEntriesForMergedClusters}
-
+import sahu_saurav_clustering._
 import scala.collection.mutable
 
 class sahu_saurav_clusteringTest extends FunSuite {
@@ -18,7 +17,7 @@ class sahu_saurav_clusteringTest extends FunSuite {
     for (i<- 0 until 150){
       assert(clusters.contains(i))
       val cluster = clusters(i)
-      assert(labelsMap.contains(cluster))
+      assert(labelsMap.contains(i))
     }
   }
 
@@ -151,5 +150,47 @@ class sahu_saurav_clusteringTest extends FunSuite {
     temp = removeEntriesForMergedClusters(temp,50,100)
     println(temp.mkString(","))
   }
+
+  test("finalClustering"){
+    val priorityQueue = makePriorityQueue(clusters)
+    var copyOfClusters = clusters.clone()
+    val finalClusters = doHierarchicalClustering(copyOfClusters,priorityQueue,3)
+    assert(clusters.values.toArray.deep != copyOfClusters.values.toArray.deep)
+    var numPoints = 0
+    for (cluster <- finalClusters){
+      numPoints += cluster._2.size+1
+    }
+    assert(numPoints == 150)
+  }
+
+  test("findlabels"){
+    val priorityQueue = makePriorityQueue(clusters)
+    var copyOfClusters = clusters.clone()
+    val finalClusters = doHierarchicalClustering(copyOfClusters,priorityQueue,3)
+    val labels = applyLabels(finalClusters,clusters,labelsMap)
+    println(labels)
+  }
+
+  test("cloneMap"){
+    var map1 = mutable.HashMap[Int,Array[Float]]((1,Array(0f,1f)))
+    map1.foreach(x=>println(x._2.deep.mkString(", ")))
+    var map2 = map1.clone()
+//    map2 -= 1 //works fine does not affect
+//    map1.foreach(x=>println(x._2.deep.mkString(", ")))
+//    map2.foreach(x=>println(x._2.deep.mkString(", ")))
+    var x = map2(1).clone()
+    x(0)=1f
+    map2(1) = x
+    map1.foreach(x=>println(x._2.deep.mkString(", ")))
+    map2.foreach(x=>println(x._2.deep.mkString(", ")))
+  }
+
+  test("everything"){
+    for (i<- 1 to 150){
+      sahu_saurav_clustering.main(Array("test",i.toString))
+    }
+
+  }
+
 
 }

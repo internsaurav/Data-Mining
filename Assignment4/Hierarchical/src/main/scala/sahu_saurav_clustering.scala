@@ -1,3 +1,6 @@
+import java.io.{File, PrintWriter}
+
+import scala.collection.mutable.ListBuffer
 import scala.collection.{immutable, mutable}
 import scala.io.Source
 import scala.math
@@ -7,12 +10,14 @@ object sahu_saurav_clustering {
   def main(args: Array[String]):Unit= {
 
     val testfilePath = args(0)
-    val targetNumCLusters = 3
+    val targetNumCLusters = args(1).toInt
+    val outputFileName = s"saurav_sahu_${targetNumCLusters}.txt"
     val (clusters,labelsMap) = processDataForClustering(testfilePath)
     val priorityQueue = makePriorityQueue(clusters)
     var copyOfClusters = clusters.clone()
-    val finalCLusters = doHierarchicalClustering(copyOfClusters,priorityQueue,targetNumCLusters)
-//    applyLabels(finalCLusters,clusters,labelsMap)
+    val finalClusters = doHierarchicalClustering(copyOfClusters,priorityQueue,targetNumCLusters)
+    val labels = applyLabels(finalClusters,clusters,labelsMap)
+    handleOutput(finalClusters,labels,clusters,labelsMap,outputFileName)
   }
 
   /*
@@ -29,10 +34,10 @@ object sahu_saurav_clustering {
   *
   * labelsMap- This maps clusters to its labels as provided in input data
   * */
-  def processDataForClustering(testfilePath: String):(mutable.HashMap[Int,Array[Float]],mutable.HashMap[Array[Float],String]) = {
+  def processDataForClustering(testfilePath: String):(mutable.HashMap[Int,Array[Float]],mutable.HashMap[Int,String]) = {
 
     val clusters = new mutable.HashMap[Int,Array[Float]]()
-    val labelsMap = new mutable.HashMap[Array[Float],String]()
+    val labelsMap = new mutable.HashMap[Int,String]()
     var clusterCounter = 0
     for (line <- Source.fromFile(testfilePath).getLines()){
       if (line.trim != ""){
@@ -50,7 +55,7 @@ object sahu_saurav_clustering {
         cluster(3) = petalWidth
         cluster(4) = initialClusterPopulation
         clusters += ((clusterCounter,cluster))
-        labelsMap += ((cluster,label))
+        labelsMap += ((clusterCounter,label))
         clusterCounter += 1
       }
     }
@@ -134,10 +139,13 @@ object sahu_saurav_clustering {
     val clusters = mutable.HashMap[Int,mutable.Set[Int]]()
     var currentNumClusters = clusterStats.size
     var temp = clustersPriorityQueue.clone()
+    val tempMergeList = new ListBuffer[String]()
     while (currentNumClusters > targetNumClusters){
-      temp = mergeClusters(clusterStats,temp,clusters)
+      temp = mergeClusters(clusterStats,temp,clusters,tempMergeList)
       currentNumClusters -= 1
     }
+    mergeOutliers(clusters,clusterStats)
+    writeDendro(tempMergeList)
     clusters
   }
 
@@ -145,8 +153,9 @@ object sahu_saurav_clustering {
   * Merges 2 clusters, removes their entries from Priority Queue, inserts new entries with updated values.
   * Merge Rule -  cluster with bigger cluster index merges into the one with smaller cluster index.
   * */
-  def mergeClusters(clusterStats: mutable.HashMap[Int, Array[Float]], clustersPriorityQueue: mutable.PriorityQueue[(Int, Int, Float)], clusters:mutable.HashMap[Int,mutable.Set[Int]])={
+  def mergeClusters(clusterStats: mutable.HashMap[Int, Array[Float]], clustersPriorityQueue: mutable.PriorityQueue[(Int, Int, Float)], clusters:mutable.HashMap[Int,mutable.Set[Int]],tempMergeList :mutable.ListBuffer[String])={
     val (clusterA,clusterB) = merge(clusterStats,clustersPriorityQueue,clusters)
+    tempMergeList += (clusterA.toString+" <--- " + clusterB.toString)
     var temp = clustersPriorityQueue.clone()
     temp = removeEntriesForMergedClusters(temp,clusterA,clusterB)
     insertEntriesForNewCluster(temp,clusterStats,clusterA)
@@ -167,22 +176,24 @@ object sahu_saurav_clustering {
     val clusterAdata = clusterStats(clusterA)
     val clusterBdata = clusterStats(clusterB)
     clusterStats -= clusterB
-    update(clusterAdata,clusterBdata)
+    val updateClusterAdata = update(clusterAdata,clusterBdata)
     var actualPointsInClusterA = if (clusters.contains(clusterA)) clusters(clusterA) else mutable.Set[Int]()
     var actualPointsInClusterB = if (clusters.contains(clusterB)) clusters(clusterB) else mutable.Set[Int]()
     actualPointsInClusterA ++= actualPointsInClusterB
     actualPointsInClusterA += clusterB
     clusters(clusterA) = actualPointsInClusterA
     clusters -= clusterB
-    clusterStats(clusterA) = clusterAdata
+    clusterStats(clusterA) = updateClusterAdata
     (clusterA,clusterB)
   }
 
   // updates data of clusterAdata with clusterBdata
   def update(clusterAdata: Array[Float], clusterBdata: Array[Float]) = {
-    for (i <- 0 until clusterAdata.length){
-      clusterAdata(i) += clusterBdata(i)
+    val temp = clusterAdata.clone()
+    for (i <- 0 until temp.length){
+      temp(i) += clusterBdata(i)
     }
+    temp
   }
 
   //removes the entries which contain one of the merged clusters
@@ -199,5 +210,96 @@ object sahu_saurav_clustering {
       val distance = euclideanDistanceBetweenClusters(clusterAdata,clusterBData)
       priorityQueue.enqueue((clusterA,clusterB,distance))
     }
+  }
+
+  /*
+  * deducedLabels- map of cluster index to deduced cluster-label
+  * */
+  def applyLabels(finalClusters: mutable.HashMap[Int, mutable.Set[Int]], clusters: mutable.HashMap[Int, Array[Float]], labelsMap: mutable.HashMap[Int, String]) = {
+
+    findLabels(finalClusters,labelsMap)
+  }
+
+  /*
+  * clusterRep - clusterrepresentative
+  * incorporatedPoints - points incorporated in the cluster represented by clusterRep
+  * Assigns each final cluster a name by choosing the most frequently occurring class label of the examples in the
+    cluster.
+  * */
+  def findLabels(finalClusters: mutable.HashMap[Int, mutable.Set[Int]], labelsMap: mutable.HashMap[Int, String])={
+
+    val deducedLabels = mutable.HashMap[Int,String]()
+    for (cluster <- finalClusters){
+      val clusterRep = cluster._1
+      val incorporatedPoints = cluster._2
+      val labelsCount = mutable.HashMap[String,Int]().withDefaultValue(0)
+      labelsCount(labelsMap(clusterRep)) += 1
+      for (point <- incorporatedPoints){
+        labelsCount(labelsMap(point)) += 1
+      }
+      val label = findMaxCountedLabel(labelsCount)
+      deducedLabels.put(clusterRep,label)
+    }
+    deducedLabels
+  }
+
+  def findMaxCountedLabel(labelsCount: mutable.Map[String, Int]) = {
+    var maxCountedLabel = ""
+    var maxCount = 0
+    for ((k,v)<- labelsCount){
+      if (v>maxCount) {
+        maxCountedLabel = k
+        maxCount = v
+      }
+    }
+    maxCountedLabel
+  }
+
+  def handleOutput(finalClusters: mutable.HashMap[Int, mutable.Set[Int]], labels: mutable.HashMap[Int, String], clusters: mutable.HashMap[Int, Array[Float]], labelsMap: mutable.HashMap[Int, String],fileName:String) = {
+    val file = new File(fileName)
+    val pw = new PrintWriter(file)
+    for(cluster <- finalClusters){
+      val label = labels(cluster._1)
+      pw.write("cluster:"+label+"\n")
+      pw.write(clusters(cluster._1).deep.mkString("[",", ",", '")+label+"']\n")
+      for (point <- cluster._2){
+        pw.write(clusters(point).deep.mkString("[",", ",", '")+label+"']\n")
+      }
+      pw.write("Number of points in this cluster:"+(cluster._2.size+1)+"\n")
+      pw.write("\n")
+    }
+    pw.write("Number of points assigned to wrong cluster:"+countClustersWithWrongLabels(finalClusters,labels,labelsMap))
+    pw.close()
+  }
+
+  def countClustersWithWrongLabels(finalClusters: mutable.HashMap[Int, mutable.Set[Int]], labels: mutable.HashMap[Int, String], labelsMap: mutable.HashMap[Int, String]) = {
+    var countOfWrongLabels = 0;
+    for(cluster<-finalClusters){
+      val clusterRep = cluster._1
+      val incorporatedPoints = cluster._2
+      val label = labels(clusterRep)
+      if (labelsMap(clusterRep) != label) countOfWrongLabels += 1
+      for (point <- incorporatedPoints){
+        if (labelsMap(point) != label) countOfWrongLabels += 1
+      }
+    }
+    countOfWrongLabels
+  }
+
+  /*
+  * merges the outliers as single clusters
+  * */
+  def mergeOutliers(clusters: mutable.HashMap[Int, mutable.Set[Int]], outliers: mutable.HashMap[Int, Array[Float]]) = {
+    for(outlier <- outliers){
+      if (!clusters.contains(outlier._1)) clusters.put(outlier._1,mutable.Set[Int]())
+    }
+  }
+
+  def writeDendro(strings: ListBuffer[String]) = {
+    val fileName = s"dendro_${150 - strings.size}.txt"
+    val file = new File(fileName)
+    val pw = new PrintWriter(file)
+    pw.write(strings.mkString("\n"))
+    pw.close()
   }
 }
