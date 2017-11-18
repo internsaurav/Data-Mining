@@ -1,0 +1,68 @@
+Initial number of rare items was 5800
+Number of ratings that did not have a value from CF is 16558
+Number of items with less than 50 similar movies are: 2728
+rarest of rare items number is 309
+>=0 and <1: 2758
+>=1 and <2: 1857
+>=2 and <3: 2660
+>=3 and <4: 5531
+>=4: 7450
+RMSE = 3.2562480345450058
+
+=============================
+
+number of ratings that used default even after using content based filtering are 6474
+>=0 and <1: 11681
+>=1 and <2: 6274
+>=2 and <3: 2022
+>=3 and <4: 223
+>=4: 56
+RMSE = 1.1213615701535287
+
+==============================
+
+umber of ratings that used default even after using content based filtering are 5460
+>=0 and <1: 12031
+>=1 and <2: 6026
+>=2 and <3: 1917
+>=3 and <4: 226
+>=4: 56
+RMSE = 1.1132113787843008
+
+===============================
+jaccard >0.5
+number of ratings that used default even after using content based filtering are 5551
+>=0 and <1: 11956
+>=1 and <2: 6069
+>=2 and <3: 1942
+>=3 and <4: 233
+>=4: 56
+RMSE = 1.1170690749363617
+
+================================
+number of ratings that used default even after using content based filtering are 1227
+>=0 and <1: 13277
+>=1 and <2: 5311
+>=2 and <3: 1315
+>=3 and <4: 293
+>=4: 60
+RMSE = 1.0881486586042928
+
+=================================
+minimum jaccard 0.4, minimum neigbourhood 50, default rating 3.0
+number of ratings that used default even after using content based filtering are 524
+>=0 and <1: 14197
+>=1 and <2: 4630
+>=2 and <3: 1156
+>=3 and <4: 226
+>=4: 47
+RMSE = 1.0487245480069671
+
+=================================
+number of ratings that used default even after using content based filtering are 416
+>=0 and <1: 14219
+>=1 and <2: 4660
+>=2 and <3: 1116
+>=3 and <4: 221
+>=4: 40
+RMSE = 1.0243651574391073
