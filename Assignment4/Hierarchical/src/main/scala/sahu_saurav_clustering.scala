@@ -145,7 +145,6 @@ object sahu_saurav_clustering {
       currentNumClusters -= 1
     }
     mergeOutliers(clusters,clusterStats)
-    writeDendro(tempMergeList)
     clusters
   }
 
@@ -259,10 +258,11 @@ object sahu_saurav_clustering {
     val file = new File(fileName)
     val pw = new PrintWriter(file)
     for(cluster <- finalClusters){
-      val label = labels(cluster._1)
-      pw.write("cluster:"+label+"\n")
-      pw.write(clusters(cluster._1).deep.mkString("[",", ",", '")+label+"']\n")
+      val clusterLabel = labels(cluster._1)
+      pw.write("cluster:"+clusterLabel+"\n")
+      pw.write(clusters(cluster._1).deep.mkString("[",", ",", '")+labelsMap(cluster._1)+"']\n")
       for (point <- cluster._2){
+        val label = labelsMap(point)
         pw.write(clusters(point).deep.mkString("[",", ",", '")+label+"']\n")
       }
       pw.write("Number of points in this cluster:"+(cluster._2.size+1)+"\n")

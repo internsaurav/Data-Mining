@@ -175,9 +175,6 @@ class sahu_saurav_clusteringTest extends FunSuite {
     var map1 = mutable.HashMap[Int,Array[Float]]((1,Array(0f,1f)))
     map1.foreach(x=>println(x._2.deep.mkString(", ")))
     var map2 = map1.clone()
-//    map2 -= 1 //works fine does not affect
-//    map1.foreach(x=>println(x._2.deep.mkString(", ")))
-//    map2.foreach(x=>println(x._2.deep.mkString(", ")))
     var x = map2(1).clone()
     x(0)=1f
     map2(1) = x
