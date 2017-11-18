@@ -12,6 +12,7 @@ Assignment2/SON/test/
 *.xml
 *.dat
 *.sbt
+*.csv
 META-INF/
 input/
 Input/
