@@ -89,7 +89,7 @@ object saurav_sahu_task2 {
         predictedRatings((user,item)) = averageOverAllRatings(itemsIndex.value(item),userItemRatingsArray.value)
       }
       else if (!itemsIndex.value.contains(item)){
-        predictedRatings((user,item)) = saurav_sahu_rec_contest.NewItemFlag
+        predictedRatings((user,item)) = saurav_sahu_comp.NewItemFlag
       } else {
         val itemIndex = itemsIndex.value(item)
         var similarItemsMap = IndexedSeq[(Int,Float)]()
@@ -188,7 +188,7 @@ object saurav_sahu_task2 {
   def findRatingFromSimilarItems(column: Int, similarItemsSeq: IndexedSeq[(Int, Float)], userItemRatingsArray: Array[Array[Double]],hp:Hyperparameters) = {
     val neighbourhoodSize = hp.neighbourhoodSize
     var numerator,denominator =0.0
-    var defaultReturnValue = saurav_sahu_rec_contest.NewItemFlag
+    var defaultReturnValue = saurav_sahu_comp.NewItemFlag
     var count,i = 0
     while (count < neighbourhoodSize && i < similarItemsSeq.length){
       val similarItemWithPCC = similarItemsSeq(i)
@@ -229,7 +229,7 @@ object saurav_sahu_task2 {
     var setOfFriendLessItems = Set[Int]()
     var ratinglessCombos = Set[(Int,Int)]()
     for ((k,v)<-predictions){
-      if (v == saurav_sahu_rec_contest.NewItemFlag) {
+      if (v == saurav_sahu_comp.NewItemFlag) {
         setOfFriendLessItems += k._2
         ratinglessCombos += k
       }
@@ -239,7 +239,7 @@ object saurav_sahu_task2 {
 
   def averageOverAllRatings(item: Int, value: Array[Array[Double]]): Double = {
     val thisItem = value(item)
-    val defaultRatingForUnseenItems = 3.0
+    val defaultRatingForUnseenItems = saurav_sahu_comp.NewItemFlag
     var count = 0
     var sum =0.0
     for (k <- 1 until thisItem.length){
@@ -406,7 +406,7 @@ object saurav_sahu_task2 {
   //finds SImilar Ratings for items that could not find any friends in the first phase
   def findSimilarRatingsForItemsWithoutFriendsinNode(data: Iterator[(Int,Int)], rareItemsNeighboursBV:Broadcast[collection.Map[Int, Set[Int]]], rarestItemsNeighboursBV: Broadcast[collection.Map[Int,Set[(Int,Float)]]], userItemRatingsArrayBV: Broadcast[Array[Array[Double]]], usersIndexBV: Broadcast[mutable.HashMap[Int, Int]], itemsIndexBV: Broadcast[mutable.HashMap[Int, Int]],hpPhase2BV:Broadcast[Hyperparameters])= {
     val predictedRatings = mutable.HashMap[(Int,Int),Double]()
-    val coldStartProblemFlag = saurav_sahu_rec_contest.NewItemFlag
+    val coldStartProblemFlag = saurav_sahu_comp.NewItemFlag
     val defaultRating = 3.0
     while (data.hasNext){
       val userItem = data.next()
@@ -459,6 +459,15 @@ object saurav_sahu_task2 {
   def findRarestOfRare(similarItemsForRareItems: collection.Map[Int, Set[Int]]) = {
     var rarestOfRare = Set[Int]()
     val minimumNeighbourhoodSize = 50
+    for ((k,v) <- similarItemsForRareItems){
+      if (v.size < minimumNeighbourhoodSize) rarestOfRare += k
+    }
+    rarestOfRare
+  }
+
+  def findRarestOfRare2(similarItemsForRareItems: collection.Map[Int, Set[Int]], minNeighbourhoodSize:Int) = {
+    var rarestOfRare = Set[Int]()
+    val minimumNeighbourhoodSize = minNeighbourhoodSize
     for ((k,v) <- similarItemsForRareItems){
       if (v.size < minimumNeighbourhoodSize) rarestOfRare += k
     }
