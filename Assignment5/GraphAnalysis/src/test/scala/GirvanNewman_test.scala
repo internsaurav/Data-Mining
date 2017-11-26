@@ -79,6 +79,7 @@ class GirvanNewman_test extends FunSuite{
     assert(countOfRatings(findIndexInTriangularMat(6,userIndex2,userIndex6))==1)
     assert(countOfRatings(findIndexInTriangularMat(6,userIndex3,userIndex5))==1)
     assert(countOfRatings(findIndexInTriangularMat(6,userIndex5,userIndex6))==0)
+    sc.stop()
   }
 
   /*
@@ -105,6 +106,7 @@ class GirvanNewman_test extends FunSuite{
     val userIndex1=usersIndex(1)
     val userIndex2=usersIndex(2)
     assert(countOfRatings(findIndexInTriangularMat(6,userIndex1,userIndex2))==3)
+    sc.stop()
   }
 
   test("triangularMatrix-actual input"){
@@ -114,6 +116,7 @@ class GirvanNewman_test extends FunSuite{
     println(userSetForMovies.mkString("\n"))
 //    println(usersIndex.mkString("\n"))
     val countOfRatings:Array[Int] = makeUpperTriangularMatrix(usersIndex,userSetForMovies)
+    sc.stop()
   }
 
   test("verifyTriangularmat"){
@@ -226,13 +229,12 @@ class GirvanNewman_test extends FunSuite{
     val structEdge = new StructType().add("src", StringType).add("dst",StringType)
     val edgeFrame = sqlContext.createDataFrame(edgesRDD,structEdge)
     val g = GraphFrame(nodeDF,edgeFrame)
-//    g.vertices.show()
+    var vcs = g.vertices.collect()
 //    g.edges.show()
 //    g.degrees.show()
-    g.bfs.fromExpr("id='A'").toExpr("id").run().show()
+//    g.bfs.fromExpr("id='E'").toExpr("id != 'E'").run().show()
     sc.stop()
   }
-
 
 
 }
