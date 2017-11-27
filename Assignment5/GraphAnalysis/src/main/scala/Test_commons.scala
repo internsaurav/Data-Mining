@@ -99,11 +99,11 @@ def findNodeName(node:Int):String={
     val nodeScores = HashMap[Int,Float]().withDefaultValue(1f)
     val edgeScores = HashMap[immutable.Set[Int],Float]()
     val numLevels = bfsMap.keySet.max
-    println(s"numLevels: $numLevels")
+    // println(s"numLevels: $numLevels")
     for(level <- numLevels until 0 by -1){
         // println(s"Level: $level")
         val thisLevelNodes = bfsMap(level)
-        println(thisLevelNodes)
+        // println(thisLevelNodes)
         for (node <- thisLevelNodes){
             val parents = parentsMaps(node)
             // println(parents)

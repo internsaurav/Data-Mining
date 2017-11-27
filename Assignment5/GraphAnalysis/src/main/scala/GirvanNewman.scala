@@ -7,6 +7,7 @@ import scala.collection.mutable.{Queue,HashMap,Set}
 import scala.collection.immutable
 import org.apache.spark.broadcast.Broadcast
 import Test_commons._
+import java.io.{File, PrintWriter}
 
 object GirvanNewman {
 
@@ -35,41 +36,24 @@ object GirvanNewman {
             }
         }
     }
-    // println(edges.mkString("\n"))
-    // val bfsMaps = HashMap[Int,HashMap[Int,immutable.Set[Int]]]()
-    // val parentsMaps = HashMap[Int,HashMap[Int,immutable.Set[Int]]]()
-    // val nodesBV = sc.broadcast(nodes)
     val edgesBV = sc.broadcast(edges)
-    val bfsData = sc.parallelize(usersIndex.keySet.toSeq).mapPartitions(roots => runBFSinMR(roots,edgesBV)).collectAsMap()
-    // nodesBV.destroy()
+    val betweennessScores = sc.parallelize(usersIndex.keySet.toSeq).mapPartitions(roots => calculateBetweennessMR(roots,edgesBV)).reduceByKey((v1,v2)=>(v1+v2)).collectAsMap.mapValues(x=>x/2)
     edgesBV.destroy()
-    // for (i <- usersIndex.keySet){
-    //     // println(s"running BFS from Node $i")
-    //     val (bfsMap,parentsMap) = runBFS(i,nodes,edges)
-    //     bfsMaps += ((i,bfsMap))
-    //     parentsMaps += ((i,parentsMap))
-    //     // println("============================")
-    // }
-    // println("BFSMaps:")
-    // println(bfsMaps.mkString("\n"))
-    // println("parentsMaps:")
-    // println(parentsMaps.mkString("\n"))
-    // println(bfsData("bfsMaps").mkString("\n"))
-    // println(bfsData("parentsMaps").mkString("\n"))
     sc.stop()
+    handleOutput(betweennessOutputPath,betweennessScores,edges)
     println(s"The total execution time taken is ${(System.currentTimeMillis() - startTime)/(1000)} sec.")
   }
 
 //bfsData is a combined variable for bfsMaps as well as parentsMaps. the positive keys are for bfsMaps and negative keys are for parentsMaps
-  def runBFSinMR(roots:Iterator[Int],edges:Broadcast[HashMap[Int,Set[Int]]])= {
-    val bfsData = HashMap[Int,HashMap[Int,immutable.Set[Int]]]()
+  def calculateBetweennessMR(roots:Iterator[Int],edges:Broadcast[HashMap[Int,Set[Int]]])= {
+    val betweennessScores = HashMap[immutable.Set[Int],Float]().withDefaultValue(0f)
     while(roots.hasNext){
       val root = roots.next
       val (bfsMap,parentsMap) = runBFS(root,edges.value)
-      bfsData += ((root,bfsMap))
-      bfsData += ((-root,parentsMap))
+      val bs = betweennessScore(bfsMap,parentsMap)
+      bs.foreach(x => (betweennessScores(x._1)+=x._2))
     }
-    bfsData.toIterator
+    betweennessScores.toIterator
   }
 
   def makeSparkContext():SparkContext={
@@ -175,5 +159,16 @@ object GirvanNewman {
     val edgeRDD = sc.parallelize(edgeList.toSeq)
     val edgeFrame = sqlContext.createDataFrame(edgeRDD,structEdge)
     edgeFrame
+  }
+
+  def handleOutput(fileName:String,betweennessScores:scala.collection.Map[immutable.Set[Int],Float], edges:HashMap[Int,Set[Int]]) = {
+    val file = new File(fileName)
+    val pw = new PrintWriter(file)
+    val sortedEdges = edges.keySet.toSeq.sorted
+    for(edge <- sortedEdges){
+      val adjList = edges(edge).filter(_>edge).toSeq.sorted
+      adjList.foreach(x=>pw.write(s"(${edge},${x},${betweennessScores(immutable.Set(edge,x))})\n"))
+    }
+    pw.close()
   }
 }
