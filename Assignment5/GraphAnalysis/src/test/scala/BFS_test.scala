@@ -1,54 +1,51 @@
 package GraphAnalysis
+import org.scalatest.FunSuite
+import GirvanNewman._
+import org.apache.spark.SparkContext
 import scala.collection.mutable.{Queue,HashMap,Set}
 import scala.collection.immutable
+import test_commons._
 
-object test_commons {
+class BFS_test extends FunSuite{
 
-  private def findIndexInTriangularMat(numUsers:Int, x:Int, y:Int):Int={
-    var i = math.min(x,y)
-    var j = math.max(x,y)
-    var temp = ((i-1)*(numUsers-i.toFloat/2)+(j-i)).toInt
-    println(s"found index for userIndex:${i},userIndex:${j} ====> ${temp}")
-    temp
-  }
-
-  private def verifyTriangularmat(numUsers:Int): Unit ={
-    val x = numUsers*numUsers/2
-    println(s"As per existing implementation, size of array should be $x and indices range from 0 to ${x-1} ")
-    println("Printing out the array indices used:")
-    for (i <- 1 until numUsers){
-      for (j<- i+1 to numUsers){
-        val k = ((i-1)*(numUsers-i.toFloat/2)+(j-i)).toInt
-        println(s"$i  $j  ==> $k ")
-      }
-    }
-  }
-
-  
-  def addToSet(i:Int,j:Int,edges:HashMap[Int,Set[Int]]):Unit= {
-    if (edges.contains(i)) edges(i) += j else edges += ((i,Set(j)))
-    if (edges.contains(j)) edges(j) += i else edges += ((j,Set(i)))
-  }
-
-def findNodeName(node:Int):String={
-        node match {
-            case 1 => return "A"
-            case 2 => return "B"
-            case 3 => return "C"
-            case 4 => return "D"
-            case 5 => return "E"
-            case 6 => return "F"
-            case 7 => return "G"
-            case 8 => return "Z" 
+  test("BFS_test"){
+    val ratingsFilePath = "../testInput/ratings4.csv"
+    val sc = makeSparkContext()
+    val (userSetForMovies,usersIndex) = extractGraphData(sc,ratingsFilePath)
+    val nodes = userSetForMovies.values.flatten.toSet
+    // println(nodes.mkString("\n"))
+    // println(usersIndex.mkString("\n"))
+    // println(userSetForMovies.mkString("\n"))
+    val countOfRatings:Array[Int] = makeUpperTriangularMatrix(usersIndex,userSetForMovies)
+    val indexUsers = usersIndex.map(_.swap)
+    val numUsers = indexUsers.keySet.max
+    // println(numUsers)
+    val edges = HashMap[Int,Set[Int]]()
+    for(i <- 1 until numUsers){
+        for(j<- i+1 to numUsers){
+            val k = ((i-1)*(numUsers-i.toFloat/2)+(j-i)).toInt
+            if(countOfRatings(k)>=1) {
+                addToSet(indexUsers(i),indexUsers(j),edges)
+            }
         }
     }
-
-    def addParents(parent:Int,children:Set[Int],parentsMap:HashMap[Int,Set[Int]])={
-        for(child<-children){
-            if(parentsMap.contains(child)) parentsMap(child)+=parent else parentsMap += ((child,Set(parent)))
-        }
+    // println(edges.mkString("\n"))
+    val bfsMaps = HashMap[Int,HashMap[Int,immutable.Set[Int]]]()
+    val parentsMaps = HashMap[Int,HashMap[Int,Set[Int]]]()
+    for (i <- 1 to 7){
+        // println(s"running BFS from Node $i")
+        val (bfsMap,parentsMap) = runBFS(i,nodes,edges)
+        bfsMaps += ((i,bfsMap))
+        parentsMaps += ((i,parentsMap))
+        // println("============================")
     }
-  /*
+    println("BFSMaps:")
+    println(bfsMaps.mkString("\n"))
+    println("parentsMaps:")
+    println(parentsMaps.mkString("\n"))
+    sc.stop()
+  }
+    /*
     *frontier - the main queue which holds the nodes to be visited next
     *bfsMap - the BFS tree, containing the nodes at level-wie distance from root
     *parentsMap- hashMap containing the parents of each node in this BFS tree
