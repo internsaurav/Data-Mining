@@ -38,10 +38,10 @@ object GirvanNewman {
     // println(edges.mkString("\n"))
     // val bfsMaps = HashMap[Int,HashMap[Int,immutable.Set[Int]]]()
     // val parentsMaps = HashMap[Int,HashMap[Int,immutable.Set[Int]]]()
-    val nodesBV = sc.broadcast(nodes)
+    // val nodesBV = sc.broadcast(nodes)
     val edgesBV = sc.broadcast(edges)
-    val bfsData = sc.parallelize(usersIndex.keySet.toSeq).mapPartitions(roots => runBFSinMR(roots,nodesBV,edgesBV)).collectAsMap()
-    nodesBV.destroy()
+    val bfsData = sc.parallelize(usersIndex.keySet.toSeq).mapPartitions(roots => runBFSinMR(roots,edgesBV)).collectAsMap()
+    // nodesBV.destroy()
     edgesBV.destroy()
     // for (i <- usersIndex.keySet){
     //     // println(s"running BFS from Node $i")
@@ -61,11 +61,11 @@ object GirvanNewman {
   }
 
 //bfsData is a combined variable for bfsMaps as well as parentsMaps. the positive keys are for bfsMaps and negative keys are for parentsMaps
-  def runBFSinMR(roots:Iterator[Int],nodes:Broadcast[immutable.Set[Int]],edges:Broadcast[HashMap[Int,Set[Int]]])= {
+  def runBFSinMR(roots:Iterator[Int],edges:Broadcast[HashMap[Int,Set[Int]]])= {
     val bfsData = HashMap[Int,HashMap[Int,immutable.Set[Int]]]()
     while(roots.hasNext){
       val root = roots.next
-      val (bfsMap,parentsMap) = runBFS(root,nodes.value,edges.value)
+      val (bfsMap,parentsMap) = runBFS(root,edges.value)
       bfsData += ((root,bfsMap))
       bfsData += ((-root,parentsMap))
     }

@@ -60,7 +60,7 @@ def findNodeName(node:Int):String={
     *thisLevelNodes -  nodes in a particular level
     *children- Children of the node. First finds the set of neighbours and removes the already visited nodes
     */
-    def runBFS(root:Int,nodes:immutable.Set[Int],edges:HashMap[Int,Set[Int]]) = {
+    def runBFS(root:Int,edges:HashMap[Int,Set[Int]]) = {
         val frontier = Queue[Int]()
         val bfsMap = HashMap[Int,immutable.Set[Int]]()
         val parentsMap = HashMap[Int,Set[Int]]()
@@ -85,4 +85,34 @@ def findNodeName(node:Int):String={
         // println(s"parents map ===> ${parentsMap.map(x =>(findNodeName(x._1),x._2.map(y=>findNodeName(y)))).mkString(",")}")
         (bfsMap,parentsMap.map(x=>(x._1,x._2.toStream.toSet)))
     }
+
+    /*
+    * nodeScores - variable representing the scores in betweenness calculation according to GN algorithm. The nodeScores are passed on to incoming edges. \
+                    All the nodes have a starting value of 1.
+    * edgeScores- hashMap that stores the betweenness scores for each edge.
+    * numLevels - total levels of nodes in this BFS Tree. Root is level 0.
+    * Traversing the  BFS tree bottom up. Take the nodes at each level. Take each node. Find its parents. \ 
+      Distribute its nodeScore among its parents(add to the parents scores).
+    * Assign these scores to the edges joining there parents.
+    */
+  def betweennessScore(bfsMap : HashMap[Int,immutable.Set[Int]],parentsMaps:HashMap[Int,immutable.Set[Int]])={
+    val nodeScores = HashMap[Int,Float]().withDefaultValue(1f)
+    val edgeScores = HashMap[immutable.Set[Int],Float]()
+    val numLevels = bfsMap.keySet.max
+    println(s"numLevels: $numLevels")
+    for(level <- numLevels until 0 by -1){
+        // println(s"Level: $level")
+        val thisLevelNodes = bfsMap(level)
+        println(thisLevelNodes)
+        for (node <- thisLevelNodes){
+            val parents = parentsMaps(node)
+            // println(parents)
+            val nodeScore = nodeScores(node)
+            val nodeScorePerParent = nodeScore/parents.size
+            parents.foreach(parent => (nodeScores(parent)+=nodeScorePerParent))
+            parents.foreach(parent => (edgeScores(immutable.Set(node,parent)) = nodeScorePerParent))
+        }
+    }
+    edgeScores
+  }
 }

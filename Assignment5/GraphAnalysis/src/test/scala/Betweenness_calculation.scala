@@ -29,28 +29,35 @@ class Betweenness_calculation extends FunSuite{
             }
         }
     }
-    // println(edges.mkString("\n"))
-    val bfsMaps = HashMap[Int,HashMap[Int,immutable.Set[Int]]]()
-    val parentsMaps = HashMap[Int,HashMap[Int,immutable.Set[Int]]]()
-    for (i <- usersIndex.keySet){
-        // println(s"running BFS from Node $i")
-        val (bfsMap,parentsMap) = runBFS(i,nodes,edges)
-        bfsMaps += ((i,bfsMap))
-        parentsMaps += ((i,parentsMap))
-        // println("============================")
-    }
-    println("BFSMaps:")
-    println(bfsMaps.mkString("\n"))
-    println("parentsMaps:")
-    println(parentsMaps.mkString("\n"))
-    // val bfsMapE = bfsMaps(5)
-    // val parentsMapE = parentsMaps(5)
-    // println(s"BFS map for E: ${bfsMapE}")
-    // println(s"parents map for E: ${parentsMapE}")
+    val edgesBV = sc.broadcast(edges)
+    val bfsData = sc.parallelize(usersIndex.keySet.toSeq).mapPartitions(roots => runBFSinMR(roots,edgesBV)).collectAsMap()
+    // nodesBV.destroy()
+    edgesBV.destroy()
     sc.stop()
+    val betweennessScores = new Array[Float](numUsers*numUsers/2)
+    for (i<- 1 to numUsers){
+        val bfsMapE = bfsData(i)
+        val parentsMapE = bfsData(-i)
+        // println(s"BFS map for E: ${bfsMapE}")
+        // println(s"parents map for E: ${parentsMapE}")
+        val bs = betweennessScore(bfsMapE,parentsMapE)
+        // println(bs)
+        for( (edgeSet,score) <- bs){
+            val edge = edgeSet.toArray
+            val i = math.min(usersIndex(edge(0)),usersIndex(edge(1)))
+            val j = math.max(usersIndex(edge(0)),usersIndex(edge(1)))
+            val k = ((i-1)*(numUsers-i.toFloat/2)+(j-i)).toInt
+            betweennessScores(k)+=score
+        }
+    }
+    for (i <- 1 until numUsers){
+        for (j <- i+1 to numUsers){
+            val k = ((i-1)*(numUsers-i.toFloat/2)+(j-i)).toInt
+            println(s"betweenness of edge ${indexUsers(i)}-${indexUsers(j)} is ${betweennessScores(k)/2} ")
+        }
+    }
+    
   }
 
-  // def betweennessScore(bfsMap : HashMap[Int,immutable.Set[Int]],parentsMaps:HashMap[Int,Set[Int]])={
-
-  // }
+  
 }
