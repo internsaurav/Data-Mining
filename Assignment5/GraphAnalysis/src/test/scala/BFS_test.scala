@@ -4,7 +4,7 @@ import GirvanNewman._
 import org.apache.spark.SparkContext
 import scala.collection.mutable.{Queue,HashMap,Set}
 import scala.collection.immutable
-import test_commons._
+import Test_commons._
 
 class BFS_test extends FunSuite{
 

@@ -3,7 +3,7 @@ import org.scalatest.FunSuite
 import GirvanNewman._
 import org.apache.spark.SparkContext
 import scala.collection.mutable
-import test_commons._
+import Test_commons._
 
 class AdlistImplementation extends FunSuite{
 

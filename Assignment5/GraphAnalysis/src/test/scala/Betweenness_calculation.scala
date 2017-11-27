@@ -4,12 +4,12 @@ import GirvanNewman._
 import org.apache.spark.SparkContext
 import scala.collection.mutable.{Queue,HashMap,Set}
 import scala.collection.immutable
-import test_commons._
+import Test_commons._
 
 class Betweenness_calculation extends FunSuite{
 
   test("Betweenness_calculation"){
-    val ratingsFilePath = "../ratings.csv"
+    val ratingsFilePath = "../testInput/ratings4.csv"
     val sc = makeSparkContext()
     val (userSetForMovies,usersIndex) = extractGraphData(sc,ratingsFilePath)
     val nodes = userSetForMovies.values.flatten.toSet
@@ -31,7 +31,7 @@ class Betweenness_calculation extends FunSuite{
     }
     // println(edges.mkString("\n"))
     val bfsMaps = HashMap[Int,HashMap[Int,immutable.Set[Int]]]()
-    val parentsMaps = HashMap[Int,HashMap[Int,Set[Int]]]()
+    val parentsMaps = HashMap[Int,HashMap[Int,immutable.Set[Int]]]()
     for (i <- usersIndex.keySet){
         // println(s"running BFS from Node $i")
         val (bfsMap,parentsMap) = runBFS(i,nodes,edges)

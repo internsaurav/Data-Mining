@@ -1,8 +1,9 @@
 package GraphAnalysis
+
 import scala.collection.mutable.{Queue,HashMap,Set}
 import scala.collection.immutable
 
-object test_commons {
+ object Test_commons {
 
   private def findIndexInTriangularMat(numUsers:Int, x:Int, y:Int):Int={
     var i = math.min(x,y)
@@ -25,9 +26,11 @@ object test_commons {
   }
 
   
-  def addToSet(i:Int,j:Int,edges:HashMap[Int,Set[Int]]):Unit= {
-    if (edges.contains(i)) edges(i) += j else edges += ((i,Set(j)))
-    if (edges.contains(j)) edges(j) += i else edges += ((j,Set(i)))
+  def addToSet(i:Int,j:Int,edges:HashMap[Int,Set[Int]])= {
+    var temp = edges
+    if (temp.contains(i)) temp(i) += j else temp += ((i,Set(j)))
+    if (temp.contains(j)) temp(j) += i else temp += ((j,Set(i)))
+    temp
   }
 
 def findNodeName(node:Int):String={
@@ -80,6 +83,6 @@ def findNodeName(node:Int):String={
         }
         // println(bfsMap.mapValues(x=>x.map(y=>findNodeName(y))).mkString("\n"))
         // println(s"parents map ===> ${parentsMap.map(x =>(findNodeName(x._1),x._2.map(y=>findNodeName(y)))).mkString(",")}")
-        (bfsMap,parentsMap)
+        (bfsMap,parentsMap.map(x=>(x._1,x._2.toStream.toSet)))
     }
 }
