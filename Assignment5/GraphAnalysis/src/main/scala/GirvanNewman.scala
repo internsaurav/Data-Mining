@@ -2,7 +2,7 @@ package GraphAnalysis
 
 import org.apache.spark.sql.types.{IntegerType, StructType}
 import org.apache.spark.{SparkConf, SparkContext}
-import scala.collection.mutable.{Queue,HashMap,Set,HashSet}
+import scala.collection.mutable.{Queue,HashMap,Set,HashSet,Buffer}
 import scala.collection.immutable
 import org.apache.spark.broadcast.Broadcast
 import Test_commons._
@@ -168,6 +168,12 @@ object GirvanNewman {
       val adjList = edges(edge).filter(_>edge).toSeq.sorted
       adjList.foreach(x=>pw.write(s"(${edge},${x},${betweennessScores(immutable.Set(edge,x))})\n"))
     }
+    pw.close()
+  }
+  def handleOutput2(fileName:String,modularities:Buffer[Double]) = {
+    val file = new File(fileName)
+    val pw = new PrintWriter(file)
+    modularities.foreach(x=>pw.write(s"$x\n"))
     pw.close()
   }
 }

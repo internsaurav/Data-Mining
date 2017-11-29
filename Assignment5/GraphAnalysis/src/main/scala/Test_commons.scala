@@ -241,7 +241,7 @@ def calculateQforCommunity(community:HashSet[Int],edges:HashMap[Int,HashSet[Int]
     val Aij = if (edges.contains(i) && edges(i).contains(j)) 1 else 0
     val ki = degreesMap.getOrElse(i,0)
     val kj = degreesMap.getOrElse(j,0)
-    (Aij,ki*kj)
+    (Aij*2.0,ki*kj*2.0)
   }
 
   def removeHighestBetweenessEdge(betweennessScores:scala.collection.Map[immutable.Set[Int],Float],edges:HashMap[Int,HashSet[Int]],degreesMap:scala.collection.Map[Int,Int])={
