@@ -2,8 +2,7 @@ package GraphAnalysis
 
 import org.apache.spark.sql.types.{IntegerType, StructType}
 import org.apache.spark.{SparkConf, SparkContext}
-import org.apache.spark.sql.{DataFrame, Row, SQLContext}
-import scala.collection.mutable.{Queue,HashMap,Set}
+import scala.collection.mutable.{Queue,HashMap,Set,HashSet}
 import scala.collection.immutable
 import org.apache.spark.broadcast.Broadcast
 import Test_commons._
@@ -27,7 +26,7 @@ object GirvanNewman {
     val indexUsers = usersIndex.map(_.swap)
     val numUsers = indexUsers.keySet.max
     // // println(numUsers)
-    var edges = HashMap[Int,Set[Int]]()
+    var edges = HashMap[Int,HashSet[Int]]()
     for(i <- 1 until numUsers){
         for(j<- i+1 to numUsers){
             val k = ((i-1)*(numUsers-i.toFloat/2)+(j-i)).toInt
@@ -45,7 +44,7 @@ object GirvanNewman {
   }
 
 //bfsData is a combined variable for bfsMaps as well as parentsMaps. the positive keys are for bfsMaps and negative keys are for parentsMaps
-  def calculateBetweennessMR(roots:Iterator[Int],edges:Broadcast[HashMap[Int,Set[Int]]])= {
+  def calculateBetweennessMR(roots:Iterator[Int],edges:Broadcast[HashMap[Int,HashSet[Int]]])= {
     val betweennessScores = HashMap[immutable.Set[Int],Float]().withDefaultValue(0f)
     while(roots.hasNext){
       val root = roots.next
@@ -138,30 +137,30 @@ object GirvanNewman {
     edgeCountMatrix
   }
 
-  def createEdgeFrame(sc:SparkContext, numUsers:Int, edgeCounts:Array[Int], minCommonElements:Int): DataFrame ={
-    var edgeList = Set[Row]()
-    val sqlContext = new org.apache.spark.sql.SQLContext(sc)
-    for(i <- 1 until numUsers){
-      for(j <- i+1 to numUsers){
-        val k = ((i-1)*(numUsers-i.toFloat/2)+(j-i)).toInt
-        if(edgeCounts(k)>=minCommonElements) {
+  // def createEdgeFrame(sc:SparkContext, numUsers:Int, edgeCounts:Array[Int], minCommonElements:Int): DataFrame ={
+  //   var edgeList = Set[Row]()
+  //   val sqlContext = new org.apache.spark.sql.SQLContext(sc)
+  //   for(i <- 1 until numUsers){
+  //     for(j <- i+1 to numUsers){
+  //       val k = ((i-1)*(numUsers-i.toFloat/2)+(j-i)).toInt
+  //       if(edgeCounts(k)>=minCommonElements) {
 
-          //          val smallerNode = math.min(indexUsers(i),indexUsers(j))
-          //          val largerNode = math.max(indexUsers(i),indexUsers(j))
-          //          edgeList += (Row(smallerNode,largerNode))
-          //          println(s"there is an edge etween ${indexUsers(i)} and ${indexUsers(j)}")
-          edgeList += (Row(i,j))
-          edgeList += (Row(j,i))
-        }
-      }
-    }
-    val structEdge = new StructType().add("src", IntegerType).add("dst",IntegerType)
-    val edgeRDD = sc.parallelize(edgeList.toSeq)
-    val edgeFrame = sqlContext.createDataFrame(edgeRDD,structEdge)
-    edgeFrame
-  }
+  //         //          val smallerNode = math.min(indexUsers(i),indexUsers(j))
+  //         //          val largerNode = math.max(indexUsers(i),indexUsers(j))
+  //         //          edgeList += (Row(smallerNode,largerNode))
+  //         //          println(s"there is an edge etween ${indexUsers(i)} and ${indexUsers(j)}")
+  //         edgeList += (Row(i,j))
+  //         edgeList += (Row(j,i))
+  //       }
+  //     }
+  //   }
+  //   val structEdge = new StructType().add("src", IntegerType).add("dst",IntegerType)
+  //   val edgeRDD = sc.parallelize(edgeList.toSeq)
+  //   val edgeFrame = sqlContext.createDataFrame(edgeRDD,structEdge)
+  //   edgeFrame
+  // }
 
-  def handleOutput(fileName:String,betweennessScores:scala.collection.Map[immutable.Set[Int],Float], edges:HashMap[Int,Set[Int]]) = {
+  def handleOutput(fileName:String,betweennessScores:scala.collection.Map[immutable.Set[Int],Float], edges:HashMap[Int,HashSet[Int]]) = {
     val file = new File(fileName)
     val pw = new PrintWriter(file)
     val sortedEdges = edges.keySet.toSeq.sorted
