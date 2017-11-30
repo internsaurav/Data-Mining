@@ -2,12 +2,13 @@ package GraphAnalysis
 
 import org.apache.spark.sql.types.{IntegerType, StructType}
 import org.apache.spark.{SparkConf, SparkContext}
-import scala.collection.mutable.{Queue,HashMap,Set,HashSet,Buffer}
+import scala.collection.mutable.{Queue,HashMap,Set,HashSet,Buffer,SortedSet}
 import scala.collection.immutable
 import org.apache.spark.broadcast.Broadcast
 import Test_commons._
-import GirvanNewman._
+import Betweenness._
 import java.io.{File, PrintWriter}
+import scala.math.Ordering
 
 object Community {
 
@@ -16,7 +17,7 @@ object Community {
   * usersIndex - Hashmap with key as original userIds and values are new indices which are continuous.
    */
   def main(args:Array[String]): Unit ={
-    val startTime = System.currentTimeMillis()
+    // val startTime = System.currentTimeMillis()
     val ratingsFilePath = args(0)
     val communitiesOutputPath = args(1)
     val betweennessOutputPath = args(2)
@@ -67,6 +68,7 @@ object Community {
     var modList=Buffer(mod)
     // var  res = ""
     //res += s"betweennessScores: ${betweennessScores.mkString(",")}\n"
+    var lastRemovedEdge = Array[Int]()
     while(mod > lastModularity){
     // while(betweennessScores.size !=0){
         val modifiedData = removeHighestBetweenessEdge(betweennessScores,edges,degreesMap)
@@ -75,6 +77,7 @@ object Community {
         edges = modifiedData._2
         degreesMap = modifiedData._3
         val removedEdge = modifiedData._4
+        lastRemovedEdge = removedEdge
         //res += s"Removed edge was ${removedEdge.deep.mkString(",")} \n"
         val parentCommunityOfEdge = findParentCommunityOfEdge(removedEdge,communities) //find the community where the edge was removed
         //res += s"Parent comm for the removed edge was $parentCommunityOfEdge \n"
@@ -117,9 +120,18 @@ object Community {
         //res += s"mod: $mod\n"
         modList+=mod
     }
+
+    edges = addLastRemovedEdge(lastRemovedEdge,edges)
+    var finalCommunities = findCommunitites(nodes,edges)
+    // println(finalCommunities)
+    val ordering = Ordering.by[SortedSet[Int],Int](_.head)
+    var sortedCommunitites = SortedSet[SortedSet[Int]]()(ordering)
+    finalCommunities.foreach(x=>(sortedCommunitites += (SortedSet[Int]()++x)))
+    // println(sortedCommunitites)
     sc.stop()
     // println(s"Mod list is $modList")
-    println(s"The total execution time taken is ${(System.currentTimeMillis() - startTime)/(1000)} sec.")
-    handleOutput2(communitiesOutputPath,modList)
+    // println(s"The total execution time taken is ${(System.currentTimeMillis() - startTime)/(1000)} sec.")
+    // handleOutput2("BaduMod",modList)
+    handleOutput3(communitiesOutputPath,sortedCommunitites)
   }
 }

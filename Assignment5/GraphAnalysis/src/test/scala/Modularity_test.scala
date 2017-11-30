@@ -1,6 +1,6 @@
 package GraphAnalysis
 import org.scalatest.FunSuite
-import GirvanNewman._
+import Betweenness._
 import org.apache.spark.SparkContext
 import org.apache.spark.SparkContext._
 import scala.collection.mutable.{Queue,HashMap,Set,HashSet,Buffer}

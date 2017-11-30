@@ -2,20 +2,20 @@ package GraphAnalysis
 
 import org.apache.spark.sql.types.{IntegerType, StructType}
 import org.apache.spark.{SparkConf, SparkContext}
-import scala.collection.mutable.{Queue,HashMap,Set,HashSet,Buffer}
+import scala.collection.mutable.{Queue,HashMap,Set,HashSet,Buffer,SortedSet}
 import scala.collection.immutable
 import org.apache.spark.broadcast.Broadcast
 import Test_commons._
 import java.io.{File, PrintWriter}
 
-object GirvanNewman {
+object Betweenness {
 
   /*
   * userSetForMovies - Hashmap with key as movie ids. The values are the set of users who rated the movie
   * usersIndex - Hashmap with key as original userIds and values are new indices which are continuous.
    */
   def main(args:Array[String]): Unit ={
-    val startTime = System.currentTimeMillis()
+    // val startTime = System.currentTimeMillis()
     val ratingsFilePath = args(0)
     val communitiesOutputPath = args(1)
     val betweennessOutputPath = args(2)
@@ -40,7 +40,7 @@ object GirvanNewman {
     edgesBV.destroy()
     sc.stop()
     handleOutput(betweennessOutputPath,betweennessScores,edges)
-    println(s"The total execution time taken is ${(System.currentTimeMillis() - startTime)/(1000)} sec.")
+    // println(s"The total execution time taken is ${(System.currentTimeMillis() - startTime)/(1000)} sec.")
   }
 
 //bfsData is a combined variable for bfsMaps as well as parentsMaps. the positive keys are for bfsMaps and negative keys are for parentsMaps
@@ -174,6 +174,13 @@ object GirvanNewman {
     val file = new File(fileName)
     val pw = new PrintWriter(file)
     modularities.foreach(x=>pw.write(s"$x\n"))
+    pw.close()
+  }
+
+  def handleOutput3(fileName:String,communities:SortedSet[SortedSet[Int]]) = {
+    val file = new File(fileName)
+    val pw = new PrintWriter(file)
+    communities.foreach(x=>pw.write(s"[${x.mkString(",")}]\n"))
     pw.close()
   }
 }

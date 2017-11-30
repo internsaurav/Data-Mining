@@ -286,4 +286,11 @@ def calculateQforCommunity(community:HashSet[Int],edges:HashMap[Int,HashSet[Int]
     }
     parentCommunity
   }
+
+  def addLastRemovedEdge(lastRemovedEdge:Array[Int],edges:HashMap[Int,HashSet[Int]]) = {
+    var finalEdges = edges
+    finalEdges(lastRemovedEdge(0)) += lastRemovedEdge(1)
+    finalEdges(lastRemovedEdge(1)) += lastRemovedEdge(0)
+    finalEdges
+  }
 }
