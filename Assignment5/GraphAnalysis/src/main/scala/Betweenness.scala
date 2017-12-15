@@ -30,7 +30,7 @@ object Betweenness {
     for(i <- 1 until numUsers){
         for(j<- i+1 to numUsers){
             val k = ((i-1)*(numUsers-i.toFloat/2)+(j-i)).toInt
-            if(countOfRatings(k)>=1) {
+            if(countOfRatings(k)>=3) {
                 edges = addToSet(indexUsers(i),indexUsers(j),edges)
             }
         }
