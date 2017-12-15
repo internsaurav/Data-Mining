@@ -26,15 +26,7 @@ object Community {
     val nodes = userSetForMovies.values.flatten.toSet
     val indexUsers = usersIndex.map(_.swap)
     val numUsers = indexUsers.keySet.max
-    var edges = HashMap[Int,HashSet[Int]]()
-    for(i <- 1 until numUsers){
-        for(j<- i+1 to numUsers){
-            val k = ((i-1)*(numUsers-i.toFloat/2)+(j-i)).toInt
-            if(countOfRatings(k)>=3) {
-                edges = addToSet(indexUsers(i),indexUsers(j),edges)
-            }
-        }
-    }
+    var edges = findEdges(countOfRatings,indexUsers,numUsers)
     val edgesBV = sc.broadcast(edges)
     var betweennessScores = sc.parallelize(usersIndex.keySet.toSeq).mapPartitions(roots => calculateBetweennessMR(roots,edgesBV)).reduceByKey((v1,v2)=>(v1+v2)).collectAsMap.mapValues(x=>x/2)
     var communities = findCommunitites(nodes,edges)

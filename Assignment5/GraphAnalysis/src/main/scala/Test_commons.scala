@@ -264,4 +264,17 @@ def calculateQforCommunity(community:HashSet[Int],edges:HashMap[Int,HashSet[Int]
     finalEdges(lastRemovedEdge(1)) += lastRemovedEdge(0)
     finalEdges
   }
+
+  def findEdges(countOfRatings:Array[Int], indexUsers: scala.collection.mutable.HashMap[Int,Int], numUsers:Int) = {
+    var edges = HashMap[Int,HashSet[Int]]()
+    for(i <- 1 until numUsers){
+        for(j<- i+1 to numUsers){
+            val k = ((i-1)*(numUsers-i.toFloat/2)+(j-i)).toInt
+            if(countOfRatings(k)>=3) {
+                edges = addToSet(indexUsers(i),indexUsers(j),edges)
+            }
+        }
+    }
+    edges
+  }
 }
