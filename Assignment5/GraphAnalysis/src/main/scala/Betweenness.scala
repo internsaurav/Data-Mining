@@ -15,7 +15,6 @@ object Betweenness {
   * usersIndex - Hashmap with key as original userIds and values are new indices which are continuous.
    */
   def main(args:Array[String]): Unit ={
-    // val startTime = System.currentTimeMillis()
     val ratingsFilePath = args(0)
     val communitiesOutputPath = args(1)
     val betweennessOutputPath = args(2)
@@ -40,7 +39,6 @@ object Betweenness {
     edgesBV.destroy()
     sc.stop()
     handleOutput(betweennessOutputPath,betweennessScores,edges)
-    // println(s"The total execution time taken is ${(System.currentTimeMillis() - startTime)/(1000)} sec.")
   }
 
 //bfsData is a combined variable for bfsMaps as well as parentsMaps. the positive keys are for bfsMaps and negative keys are for parentsMaps
@@ -129,36 +127,11 @@ object Betweenness {
         val i=pair.map(x=>usersIndex(x)).min
         val j=pair.map(x=>usersIndex(x)).max
         val k = ((i-1)*(numUsers-i.toFloat/2)+(j-i)).toInt
-       // println(s"Incrementing for Actual indices: ${temp(i)},${temp(j)} =========> ${k} ")
-       // println(s"Incrementing for calculated indices: ${i},${j} =========> ${k} ")
         edgeCountMatrix(k) += 1
       }
     }
     edgeCountMatrix
   }
-
-  // def createEdgeFrame(sc:SparkContext, numUsers:Int, edgeCounts:Array[Int], minCommonElements:Int): DataFrame ={
-  //   var edgeList = Set[Row]()
-  //   val sqlContext = new org.apache.spark.sql.SQLContext(sc)
-  //   for(i <- 1 until numUsers){
-  //     for(j <- i+1 to numUsers){
-  //       val k = ((i-1)*(numUsers-i.toFloat/2)+(j-i)).toInt
-  //       if(edgeCounts(k)>=minCommonElements) {
-
-  //         //          val smallerNode = math.min(indexUsers(i),indexUsers(j))
-  //         //          val largerNode = math.max(indexUsers(i),indexUsers(j))
-  //         //          edgeList += (Row(smallerNode,largerNode))
-  //         //          println(s"there is an edge etween ${indexUsers(i)} and ${indexUsers(j)}")
-  //         edgeList += (Row(i,j))
-  //         edgeList += (Row(j,i))
-  //       }
-  //     }
-  //   }
-  //   val structEdge = new StructType().add("src", IntegerType).add("dst",IntegerType)
-  //   val edgeRDD = sc.parallelize(edgeList.toSeq)
-  //   val edgeFrame = sqlContext.createDataFrame(edgeRDD,structEdge)
-  //   edgeFrame
-  // }
 
   def handleOutput(fileName:String,betweennessScores:scala.collection.Map[immutable.Set[Int],Float], edges:HashMap[Int,HashSet[Int]]) = {
     val file = new File(fileName)
