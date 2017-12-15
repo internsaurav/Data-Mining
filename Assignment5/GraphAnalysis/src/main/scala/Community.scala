@@ -17,7 +17,6 @@ object Community {
   * usersIndex - Hashmap with key as original userIds and values are new indices which are continuous.
    */
   def main(args:Array[String]): Unit ={
-    // val startTime = System.currentTimeMillis()
     val ratingsFilePath = args(0)
     val communitiesOutputPath = args(1)
     val betweennessOutputPath = args(2)
@@ -27,7 +26,6 @@ object Community {
     val nodes = userSetForMovies.values.flatten.toSet
     val indexUsers = usersIndex.map(_.swap)
     val numUsers = indexUsers.keySet.max
-    // // println(numUsers)
     var edges = HashMap[Int,HashSet[Int]]()
     for(i <- 1 until numUsers){
         for(j<- i+1 to numUsers){
@@ -57,20 +55,12 @@ object Community {
     edgesBV.destroy()
     mBV.destroy()
     degreesMapBV.destroy()
-    // println(modularityMap)
     val modData=modularityMap.values.map(x => x._1).aggregate(initialVal)(aggFunction,aggFunction)
     var mod = ((modData._1/(2.0*m)-modData._2/(4.0*m*m)))
-    // // println(s"Assessment of edges: ${numEdges/2}")
-    
-    // var mod = modularilty(sc,nodes,edges,m,degreesMap)
-    // println(s"Modularity of the mother graph is $mod")
     var lastModularity = -1.0
     var modList=Buffer(mod)
-    // var  res = ""
-    //res += s"betweennessScores: ${betweennessScores.mkString(",")}\n"
     var lastRemovedEdge = Array[Int]()
     while(mod > lastModularity){
-    // while(betweennessScores.size !=0){
         val modifiedData = removeHighestBetweenessEdge(betweennessScores,edges,degreesMap)
         m -= 1
         betweennessScores = modifiedData._1
@@ -78,13 +68,9 @@ object Community {
         degreesMap = modifiedData._3
         val removedEdge = modifiedData._4
         lastRemovedEdge = removedEdge
-        //res += s"Removed edge was ${removedEdge.deep.mkString(",")} \n"
         val parentCommunityOfEdge = findParentCommunityOfEdge(removedEdge,communities) //find the community where the edge was removed
-        //res += s"Parent comm for the removed edge was $parentCommunityOfEdge \n"
         val subCommunities = findCommunitites(parentCommunityOfEdge.toSeq.toSet,edges) //check if the community got split
-        //res += s"Subcommunitites: $subCommunities \n"
         if(subCommunities.size == 1){ //community not split
-            //res += s"Not Split\n"
             val oldModularityData = modularityMap(parentCommunityOfEdge)
             val ki = degreesMap(removedEdge(0))
             val kj = degreesMap(removedEdge(1))
@@ -96,9 +82,7 @@ object Community {
             val newKiKj = oldModularityData._1._2 - oldKi*oldKj*2 + 2*ki*kj - reducedKiKjForNeighbours
             val newSumOfDegrees = oldModularityData._2 - 2
             modularityMap(parentCommunityOfEdge) = ((newAij,newKiKj),newSumOfDegrees) //update new values
-            //res += s"reducedKiKjForNeighbours: $reducedKiKjForNeighbours , newAij:$newAij , newKiKj:$newKiKj  \n"
         } else {
-            //res += s"Split\n"
             val edgesBV = sc.broadcast(edges)
             val degreesMapBV = sc.broadcast(degreesMap)
             modularityMap -= parentCommunityOfEdge //delete old values
@@ -108,30 +92,22 @@ object Community {
                 val sumOfDegrees = sc.parallelize(community.toSeq).map(x => degreesMapBV.value(x)).aggregate(0)(aggFunction2,aggFunction2)
                 modularityMap += ((community,(communityModularityData,sumOfDegrees)))
                 communities += community
-                //res += s"New community added: $community with Data: ${(communityModularityData,sumOfDegrees)}\n"
             }
             edgesBV.destroy()
             degreesMapBV.destroy()
         }
         val modData=modularityMap.values.map(x => x._1).aggregate(initialVal)(aggFunction,aggFunction)
-        //res += s"modData: $modData\n"
         lastModularity = mod
         mod = ((modData._1/(2.0*m)-modData._2/(4.0*m*m)))
-        //res += s"mod: $mod\n"
         modList+=mod
     }
 
     edges = addLastRemovedEdge(lastRemovedEdge,edges)
     var finalCommunities = findCommunitites(nodes,edges)
-    // println(finalCommunities)
     val ordering = Ordering.by[SortedSet[Int],Int](_.head)
     var sortedCommunitites = SortedSet[SortedSet[Int]]()(ordering)
     finalCommunities.foreach(x=>(sortedCommunitites += (SortedSet[Int]()++x)))
-    // println(sortedCommunitites)
     sc.stop()
-    // println(s"Mod list is $modList")
-    // println(s"The total execution time taken is ${(System.currentTimeMillis() - startTime)/(1000)} sec.")
-    // handleOutput2("BaduMod",modList)
     handleOutput3(communitiesOutputPath,sortedCommunitites)
   }
 }
