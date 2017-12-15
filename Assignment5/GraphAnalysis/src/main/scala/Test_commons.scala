@@ -183,35 +183,6 @@ def findNodeName(node:Int):String={
     (modularity,communities.size)
   }
 
-  // def modularilty(sc:SparkContext ,nodes:immutable.Set[Int], edges:HashMap[Int,HashSet[Int]])={
-  //   val nodesToBeVisited = HashSet[Int]()
-  //   val communities = Set[Set[Int]]()
-
-  //   nodes.foreach(x => (nodesToBeVisited += x))
-  //   while(!nodesToBeVisited.isEmpty){
-  //       val randomNode = nodesToBeVisited.head
-  //       val connectedComps = connectedComponents(randomNode,edges)
-  //       communities += connectedComps
-  //       nodesToBeVisited --= connectedComps
-  //   }
-  //   // println(communities)
-  //   val m =sc.parallelize(edges.toSeq).map(data => (1,data._2.size)).reduceByKey((v1,v2)=>(v1+v2)).collect()(0)._2/2
-  //   // println(s"m calculated : ${m}")
-  //   var Qx2m = 0.0
-  //   val edgesBV = sc.broadcast(edges)
-  //   val mBV = sc.broadcast(m)
-  //   for(community <- communities){
-  //       val nodePairs = community.subsets(2).toSeq
-  //       val thisQx2m = sc.parallelize(nodePairs).map(x=>calculateQ(x,edgesBV,mBV)).reduceByKey((v1,v2)=>(v1+v2)).collect()(0)._2
-  //       // println(thisQx2m)
-  //       Qx2m += thisQx2m
-  //   }
-  //   edgesBV.destroy()
-  //   mBV.destroy()
-  //   val mod = Qx2m/(2*m)
-  //   mod
-  // }
-
   def calculateQinPartition(communities:Iterator[HashSet[Int]],edgesBV:Broadcast[HashMap[Int,HashSet[Int]]],mBV:Broadcast[Int],degreesMapBV:Broadcast[scala.collection.Map[Int,Int]])={
     var Qx2m = 0.0
     communities.foreach(community => (Qx2m += calculateQforCommunity(community,edgesBV.value,mBV.value,degreesMapBV.value)))
