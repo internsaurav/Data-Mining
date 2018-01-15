@@ -1,4 +1,4 @@
-Determination of Frequent Item-Sets<br />
+# Determination of Frequent Item-Sets
 The problem statement is Assignment2.pdf<br /><br />
 Solution-<br />
 -Implemented SON algorithm in Map-Reduce and Apriori in individual nodes to fnd the movies which
