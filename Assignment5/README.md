@@ -1,4 +1,4 @@
-#Girvan-Newman algorithm<br />
+# Girvan-Newman algorithm
 The problem statement is named Assignment5.pdf <br /><br />
 
 Solution-<br />
